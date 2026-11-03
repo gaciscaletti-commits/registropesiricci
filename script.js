@@ -208,6 +208,8 @@ function renderCards() {
             cardElement.classList.add('selected');
             // Salva l'ultima card cliccata
             lastClickedCardId = card.id;
+            // Mostra il tasto "-"
+            removeCardButton.classList.add('visible');
             openWeightModal(card);
         });
         
@@ -220,6 +222,8 @@ function renderCards() {
             cardElement.classList.add('selected');
             // Salva l'ultima card cliccata
             lastClickedCardId = card.id;
+            // Mostra il tasto "-"
+            removeCardButton.classList.add('visible');
             openActionModal(card.id);
         });
         
@@ -236,6 +240,10 @@ function openAddCardModal() {
 // Chiude il modale per aggiungere una nuova card
 function closeAddCardModal() {
     addCardModal.classList.remove('active');
+    // Nascondi il tasto "-" e deseleziona le card
+    removeCardButton.classList.remove('visible');
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+    lastClickedCardId = null;
 }
 
 // Apre il modale azione per una card
@@ -261,6 +269,10 @@ function closeActionModal() {
     selectedMoveId = null;
     moveSelector.style.display = 'none';
     actionModal.classList.remove('active');
+    // Nascondi il tasto "-" e deseleziona le card
+    removeCardButton.classList.remove('visible');
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+    lastClickedCardId = null;
 }
 
 // Mostra il selettore per lo spostamento
@@ -373,6 +385,10 @@ function openArchiveModal() {
 // Chiude il modale archivio
 function closeArchiveModal() {
     archiveModal.classList.remove('active');
+    // Nascondi il tasto "-" e deseleziona le card
+    removeCardButton.classList.remove('visible');
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+    lastClickedCardId = null;
 }
 
 // Filtra e renderizza l'archivio
@@ -503,6 +519,10 @@ function openWeightModal(card) {
 function closeWeightModal() {
     weightModal.classList.remove('active');
     weightModal.dataset.currentCardId = '';
+    // Nascondi il tasto "-" e deseleziona le card
+    removeCardButton.classList.remove('visible');
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+    lastClickedCardId = null;
 }
 
 // Aggiunge un nuovo peso alla card corrente
@@ -724,6 +744,10 @@ cardsContainer.addEventListener('touchmove', () => {
 function init() {
     loadData();
     renderCards();
+    // Assicurati che il tasto "-" sia nascosto all'avvio
+    removeCardButton.classList.remove('visible');
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+    lastClickedCardId = null;
 }
 
 // Avvia l'applicazione quando il DOM è pronto

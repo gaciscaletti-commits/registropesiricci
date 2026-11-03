@@ -185,6 +185,11 @@
     box-shadow: var(--shadow);
     transition: transform 0.2s ease, background-color 0.2s ease;
     z-index: 100;
+    display: none;
+}
+
+.remove-button.visible {
+    display: block;
 }
 
 .remove-button:hover {
