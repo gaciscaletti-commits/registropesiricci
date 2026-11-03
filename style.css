@@ -13,10 +13,9 @@
     --text-color: #333333;
     --text-light: #666666;
     --border-color: #e0e0e0;
-    --danger-color: #f44336;
-    --success-color: #4CAF50;
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     --border-radius: 12px;
+    --group-color: #FF9800;
 }
 
 /* Container principale */
@@ -59,13 +58,30 @@
     padding: 20px;
     box-shadow: var(--shadow);
     cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    border: 1px solid var(--border-color);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    border: 2px solid transparent;
+    position: relative;
+    user-select: none;
 }
 
 .card:hover {
     transform: translateY(-4px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.card.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+}
+
+.card.drag-over {
+    border-color: var(--primary-color);
+    background-color: #f0fff0;
+}
+
+.card.in-group {
+    border-color: var(--group-color);
+    border-width: 2px;
 }
 
 .card-number {
@@ -74,6 +90,10 @@
     color: var(--primary-color);
     text-align: center;
     margin: 10px 0;
+}
+
+.card.in-group .card-number {
+    color: var(--group-color);
 }
 
 .card-title {
@@ -100,6 +120,18 @@
 .card-arrow {
     color: var(--secondary-color);
     font-size: 1.2rem;
+}
+
+.card-group-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: var(--group-color);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: bold;
 }
 
 /* Pulsante Aggiungi */
@@ -153,8 +185,8 @@
     border-radius: var(--border-radius);
     padding: 25px;
     width: 100%;
-    max-width: 400px;
-    max-height: 80vh;
+    max-width: 500px;
+    max-height: 85vh;
     overflow-y: auto;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
@@ -238,41 +270,74 @@
 
 /* Modale pesi */
 .weight-modal {
-    max-width: 450px;
+    max-width: 900px;
 }
 
-.weights-list {
+.weights-table-container {
     margin: 15px 0;
-    max-height: 300px;
+    max-height: 400px;
     overflow-y: auto;
 }
 
-.weight-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px;
+.weights-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+}
+
+.weights-table th,
+.weights-table td {
+    padding: 10px;
+    text-align: center;
+    border: 1px solid var(--border-color);
+}
+
+.weights-table th {
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+}
+
+.weights-table td {
+    background-color: white;
+}
+
+.weights-table tr:nth-child(even) td {
     background-color: #f9f9f9;
-    border-radius: 8px;
-    margin-bottom: 10px;
-    border-left: 4px solid var(--secondary-color);
 }
 
-.weight-date {
-    font-weight: 500;
+.weight-inputs-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.weight-input-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.weight-input-group label {
+    min-width: 80px;
     color: var(--text-color);
+    font-weight: 500;
 }
 
-.weight-value {
-    font-weight: bold;
-    color: var(--primary-color);
-    font-size: 1.1rem;
+.weight-input-group input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.95rem;
 }
 
-.add-weight-form {
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border-color);
+.weight-input-group input:focus {
+    outline: none;
+    border-color: var(--primary-color);
 }
 
 /* Scrollbar personalizzata */
@@ -308,6 +373,15 @@
     .app-header h1 {
         font-size: 1.5rem;
     }
+    
+    .weights-table {
+        font-size: 0.85rem;
+    }
+    
+    .weights-table th,
+    .weights-table td {
+        padding: 6px;
+    }
 }
 
 /* Animazione pulsante */
@@ -335,4 +409,9 @@
     padding: 20px;
     font-style: italic;
     font-size: 0.9rem;
+    display: none;
+}
+
+.empty-weights.visible {
+    display: block;
 }

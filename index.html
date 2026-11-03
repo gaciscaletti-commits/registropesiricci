@@ -38,21 +38,30 @@
     <!-- Modale per visualizzare/aggiungere pesi -->
     <div class="modal" id="weightModal">
         <div class="modal-content weight-modal">
-            <h2 id="modalCardTitle">Scheda #<span id="currentCardNumber"></span></h2>
+            <h2 id="modalCardTitle">Scheda #<span id="currentCardNumbers"></span></h2>
             
-            <div class="weights-list" id="weightsList">
-                <!-- I pesi verranno aggiunti dinamicamente -->
+            <div class="weights-table-container">
+                <table class="weights-table" id="weightsTable">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th id="weightHeaders"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="weightsTableBody">
+                    </tbody>
+                </table>
+                <p class="empty-weights" id="emptyWeightsMsg">Nessun peso registrato. Aggiungine uno!</p>
             </div>
             
             <div class="add-weight-form">
                 <h3>Aggiungi Peso</h3>
                 <div class="form-group">
                     <label for="weightDate">Data:</label>
-                    <input type="date" id="weightDate" required>
+                    <input type="text" id="weightDate" placeholder="GG/MM/AAAA" maxlength="10" required>
                 </div>
-                <div class="form-group">
-                    <label for="weightValue">Peso (g):</label>
-                    <input type="number" id="weightValue" min="1" step="1" placeholder="Peso in grammi" required>
+                <div id="weightInputsContainer" class="weight-inputs-container">
+                    <!-- Input per ogni scheda nel gruppo verranno aggiunti qui -->
                 </div>
                 <div class="modal-buttons">
                     <button class="btn-cancel" id="cancelWeightBtn">Chiudi</button>
