@@ -9,6 +9,7 @@
 <body>
     <div class="app-container">
         <header class="app-header">
+            <button class="archive-button" id="archiveButton">📁 Archivio</button>
             <h1>Registro Pesi</h1>
         </header>
         
@@ -16,7 +17,8 @@
             <!-- Le card verranno aggiunte dinamicamente tramite JavaScript -->
         </main>
         
-        <!-- Pulsante Aggiungi in basso a destra -->
+        <!-- Pulsanti in basso -->
+        <button class="remove-button" id="removeCardButton">-</button>
         <button class="add-button" id="addCardButton">+</button>
     </div>
     
@@ -35,18 +37,53 @@
         </div>
     </div>
     
+    <!-- Modale per azione scheda (deceduto/liberato/spostato) -->
+    <div class="modal" id="actionModal">
+        <div class="modal-content">
+            <h2 id="actionModalTitle">Azioni Scheda</h2>
+            <div class="action-options" id="actionOptions">
+                <button class="action-btn" id="deceasedBtn">Deceduto</button>
+                <button class="action-btn" id="releasedBtn">Liberato</button>
+                <button class="action-btn" id="movedBtn" style="display: none;">Spostato</button>
+            </div>
+            <div class="move-selector" id="moveSelector" style="display: none; margin-top: 20px;">
+                <p>Seleziona l'ID da spostare:</p>
+                <div class="move-options" id="moveOptions"></div>
+            </div>
+            <div class="modal-buttons" style="margin-top: 20px;">
+                <button class="btn-cancel" id="cancelActionBtn">Annulla</button>
+                <button class="btn-confirm" id="confirmActionBtn">Conferma</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modale archivio -->
+    <div class="modal" id="archiveModal">
+        <div class="modal-content archive-modal">
+            <h2>Archivio Schede</h2>
+            <div class="archive-filter" id="archiveFilter">
+                <button class="filter-btn active" data-status="all">Tutte</button>
+                <button class="filter-btn" data-status="deceduto">Decedute</button>
+                <button class="filter-btn" data-status="liberato">Liberate</button>
+            </div>
+            <div class="archive-list" id="archiveList">
+                <!-- Le schede archiviate verranno aggiunte qui -->
+            </div>
+            <div class="modal-buttons">
+                <button class="btn-cancel" id="closeArchiveBtn">Chiudi</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Modale per visualizzare/aggiungere pesi -->
     <div class="modal" id="weightModal">
         <div class="modal-content weight-modal">
-            <h2 id="modalCardTitle">Scheda #<span id="currentCardNumbers"></span></h2>
+            <h2 id="modalCardTitle">Scheda</h2>
             
             <div class="weights-table-container">
+                <div class="card-numbers-display" id="cardNumbersDisplay"></div>
                 <table class="weights-table" id="weightsTable">
-                    <thead>
-                        <tr>
-                            <th>Data</th>
-                            <th id="weightHeaders"></th>
-                        </tr>
+                    <thead id="weightsTableHead">
                     </thead>
                     <tbody id="weightsTableBody">
                     </tbody>
@@ -61,7 +98,7 @@
                     <input type="text" id="weightDate" placeholder="GG/MM/AAAA" maxlength="10" required>
                 </div>
                 <div id="weightInputsContainer" class="weight-inputs-container">
-                    <!-- Input per ogni scheda nel gruppo verranno aggiunti qui -->
+                    <!-- Input per ogni ID verranno aggiunti qui -->
                 </div>
                 <div class="modal-buttons">
                     <button class="btn-cancel" id="cancelWeightBtn">Chiudi</button>

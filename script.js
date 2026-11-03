@@ -1,49 +1,71 @@
-// Dati delle schede, gruppi e pesi
+// Dati delle schede e archivio
 let cards = [];
-let groups = [];
+let archive = [];
 
 // Elementi DOM
 const cardsContainer = document.getElementById('cardsContainer');
 const addCardButton = document.getElementById('addCardButton');
+const removeCardButton = document.getElementById('removeCardButton');
+const archiveButton = document.getElementById('archiveButton');
 const addCardModal = document.getElementById('addCardModal');
 const weightModal = document.getElementById('weightModal');
+const actionModal = document.getElementById('actionModal');
+const archiveModal = document.getElementById('archiveModal');
 
 // Elementi modale nuova card
 const cardNumberInput = document.getElementById('cardNumber');
 const confirmCardBtn = document.getElementById('confirmCardBtn');
 const cancelCardBtn = document.getElementById('cancelCardBtn');
 
+// Elementi modale azione
+const actionModalTitle = document.getElementById('actionModalTitle');
+const actionOptions = document.getElementById('actionOptions');
+const movedBtn = document.getElementById('movedBtn');
+const moveSelector = document.getElementById('moveSelector');
+const moveOptions = document.getElementById('moveOptions');
+const confirmActionBtn = document.getElementById('confirmActionBtn');
+const cancelActionBtn = document.getElementById('cancelActionBtn');
+
+// Elementi modale archivio
+const archiveFilter = document.getElementById('archiveFilter');
+const archiveList = document.getElementById('archiveList');
+const closeArchiveBtn = document.getElementById('closeArchiveBtn');
+
 // Elementi modale pesi
-const currentCardNumbersSpan = document.getElementById('currentCardNumbers');
+const currentCardTitle = document.getElementById('modalCardTitle');
+const cardNumbersDisplay = document.getElementById('cardNumbersDisplay');
 const weightsTable = document.getElementById('weightsTable');
+const weightsTableHead = document.getElementById('weightsTableHead');
 const weightsTableBody = document.getElementById('weightsTableBody');
-const weightHeaders = document.getElementById('weightHeaders');
 const emptyWeightsMsg = document.getElementById('emptyWeightsMsg');
 const weightDateInput = document.getElementById('weightDate');
 const weightInputsContainer = document.getElementById('weightInputsContainer');
 const addWeightBtn = document.getElementById('addWeightBtn');
 const cancelWeightBtn = document.getElementById('cancelWeightBtn');
 
-// Variabile per il drag & drop
+// Variabile per il drag & drop e azione scheda
 let draggedCard = null;
+let currentActionCardId = null;
+let selectedMoveId = null;
+let currentFilter = 'all';
 
 // Carica i dati dal localStorage
 function loadData() {
     const savedCards = localStorage.getItem('animalCards');
-    const savedGroups = localStorage.getItem('animalGroups');
+    const savedArchive = localStorage.getItem('animalArchive');
     
     if (savedCards) {
         cards = JSON.parse(savedCards);
     }
-    if (savedGroups) {
-        groups = JSON.parse(savedGroups);
+    if (savedArchive) {
+        archive = JSON.parse(savedArchive);
     }
 }
 
 // Salva i dati nel localStorage
 function saveData() {
     localStorage.setItem('animalCards', JSON.stringify(cards));
-    localStorage.setItem('animalGroups', JSON.stringify(groups));
+    localStorage.setItem('animalArchive', JSON.stringify(archive));
 }
 
 // Genera un numero casuale a 4 cifre
@@ -51,16 +73,11 @@ function generateRandomNumber() {
     return Math.floor(1000 + Math.random() * 9000);
 }
 
-// Trova il gruppo di una card
-function getCardGroup(cardId) {
-    return groups.find(g => g.cardIds.includes(cardId));
-}
-
 // Crea una nuova card
 function createCard(number) {
     const newCard = {
         id: Date.now().toString(),
-        number: number,
+        numbers: [number],
         weights: []
     };
     cards.push(newCard);
@@ -69,39 +86,58 @@ function createCard(number) {
     closeAddCardModal();
 }
 
-// Unisce due card in un gruppo
+// Unisce due card in una singola
 function mergeCards(card1Id, card2Id) {
-    const card1 = cards.find(c => c.id === card1Id);
-    const card2 = cards.find(c => c.id === card2Id);
+    const card1Index = cards.findIndex(c => c.id === card1Id);
+    const card2Index = cards.findIndex(c => c.id === card2Id);
     
-    if (!card1 || !card2) return;
+    if (card1Index === -1 || card2Index === -1) return;
     
-    // Controlla se una delle due fa già parte di un gruppo
-    const group1 = getCardGroup(card1Id);
-    const group2 = getCardGroup(card2Id);
+    const card1 = cards[card1Index];
+    const card2 = cards[card2Index];
     
-    if (group1 && group2 && group1.id !== group2.id) {
-        // Unisce due gruppi esistenti
-        const mergedGroup = {
-            id: Date.now().toString(),
-            cardIds: [...group1.cardIds, ...group2.cardIds]
-        };
-        groups = groups.filter(g => g.id !== group1.id && g.id !== group2.id);
-        groups.push(mergedGroup);
-    } else if (group1) {
-        // Aggiunge card2 al gruppo di card1
-        group1.cardIds.push(card2Id);
-    } else if (group2) {
-        // Aggiunge card1 al gruppo di card2
-        group2.cardIds.push(card1Id);
+    // Unisce i numeri
+    const mergedNumbers = [...new Set([...card1.numbers, ...card2.numbers])];
+    
+    // Unisce i pesi
+    const mergedWeights = [];
+    const allDates = new Set([...card1.weights.map(w => w.date), ...card2.weights.map(w => w.date)]);
+    
+    allDates.forEach(date => {
+        const weight1 = card1.weights.find(w => w.date === date);
+        const weight2 = card2.weights.find(w => w.date === date);
+        
+        const values = [];
+        mergedNumbers.forEach(num => {
+            if (card1.numbers.includes(num) && weight1) {
+                const numIndex = card1.numbers.indexOf(num);
+                values.push(weight1.values[numIndex] || null);
+            } else if (card2.numbers.includes(num) && weight2) {
+                const numIndex = card2.numbers.indexOf(num);
+                values.push(weight2.values[numIndex] || null);
+            } else {
+                values.push(null);
+            }
+        });
+        
+        mergedWeights.push({ date, values });
+    });
+    
+    // Crea la nuova card unita
+    const mergedCard = {
+        id: card1.id,
+        numbers: mergedNumbers,
+        weights: mergedWeights
+    };
+    
+    // Rimuove le due card originali e aggiunge quella unita
+    cards.splice(card1Index, 1);
+    if (card2Index > card1Index) {
+        cards.splice(card2Index - 1, 1);
     } else {
-        // Crea un nuovo gruppo con entrambe le card
-        const newGroup = {
-            id: Date.now().toString(),
-            cardIds: [card1Id, card2Id]
-        };
-        groups.push(newGroup);
+        cards.splice(card2Index, 1);
     }
+    cards.push(mergedCard);
     
     saveData();
     renderCards();
@@ -122,24 +158,17 @@ function renderCards() {
         cardElement.dataset.id = card.id;
         cardElement.draggable = true;
         
-        const group = getCardGroup(card.id);
-        const groupSize = group ? group.cardIds.length : 1;
+        // Formatta i numeri (se più di uno, separati da virgola)
+        const numbersText = card.numbers.join(', ');
         const weightsCount = card.weights.length;
         
-        if (group) {
-            cardElement.classList.add('in-group');
-        }
-        
         cardElement.innerHTML = `
-            <div class="card-number">${card.number}</div>
+            <div class="card-numbers">${numbersText}</div>
             <div class="card-title">Scheda Animale</div>
             <div class="card-info">
                 <span class="card-count">${weightsCount} registrazioni</span>
                 <span class="card-arrow">→</span>
             </div>
-            ${group && group.cardIds.length > 1 ? `
-                <div class="card-group-badge">Gruppo (${group.cardIds.length})</div>
-            ` : ''}
         `;
         
         // Event listeners per drag & drop
@@ -172,9 +201,7 @@ function renderCards() {
         });
         
         cardElement.addEventListener('click', (e) => {
-            if (!e.target.classList.contains('card-group-badge')) {
-                openWeightModal(card);
-            }
+            openWeightModal(card);
         });
         
         cardsContainer.appendChild(cardElement);
@@ -192,23 +219,206 @@ function closeAddCardModal() {
     addCardModal.classList.remove('active');
 }
 
-// Apre il modale dei pesi per una card specifica
-function openWeightModal(card) {
-    const group = getCardGroup(card.id);
-    const groupCards = group ? group.cardIds.map(id => cards.find(c => c.id === id)).filter(c => c) : [card];
+// Apre il modale azione per una card
+function openActionModal(cardId) {
+    currentActionCardId = cardId;
+    const card = cards.find(c => c.id === cardId);
     
-    // Aggiorna il titolo con tutti i numeri delle card nel gruppo
-    const cardNumbers = groupCards.map(c => c.number).join(', ');
-    currentCardNumbersSpan.textContent = cardNumbers;
+    if (!card) return;
+    
+    // Mostra/nascondi il pulsante "Spostato" in base al numero di ID
+    if (card.numbers.length > 1) {
+        movedBtn.style.display = 'block';
+    } else {
+        movedBtn.style.display = 'none';
+    }
+    
+    actionModal.classList.add('active');
+}
+
+// Chiude il modale azione
+function closeActionModal() {
+    currentActionCardId = null;
+    selectedMoveId = null;
+    moveSelector.style.display = 'none';
+    actionModal.classList.remove('active');
+}
+
+// Mostra il selettore per lo spostamento
+function showMoveSelector() {
+    const card = cards.find(c => c.id === currentActionCardId);
+    if (!card || card.numbers.length <= 1) return;
+    
+    moveOptions.innerHTML = '';
+    card.numbers.forEach(num => {
+        const option = document.createElement('button');
+        option.className = 'move-option';
+        option.textContent = num;
+        option.dataset.number = num;
+        option.addEventListener('click', () => {
+            // Rimuovi la selezione precedente
+            document.querySelectorAll('.move-option').forEach(opt => opt.classList.remove('selected'));
+            option.classList.add('selected');
+            selectedMoveId = num;
+        });
+        moveOptions.appendChild(option);
+    });
+    
+    moveSelector.style.display = 'block';
+}
+
+// Esegue l'azione selezionata
+function executeAction(action) {
+    if (!currentActionCardId) return;
+    
+    const cardIndex = cards.findIndex(c => c.id === currentActionCardId);
+    if (cardIndex === -1) return;
+    
+    const card = cards[cardIndex];
+    
+    switch (action) {
+        case 'deceased':
+        case 'released':
+            // Archivia la scheda
+            const archivedCard = {
+                ...card,
+                status: action,
+                archivedAt: new Date().toISOString().split('T')[0]
+            };
+            archive.push(archivedCard);
+            cards.splice(cardIndex, 1);
+            break;
+            
+        case 'moved':
+            if (!selectedMoveId) {
+                alert('Seleziona un ID da spostare');
+                return;
+            }
+            
+            // Crea una nuova scheda con l'ID selezionato
+            const newCard = {
+                id: Date.now().toString(),
+                numbers: [selectedMoveId],
+                weights: []
+            };
+            
+            // Copia i pesi per l'ID selezionato
+            card.weights.forEach(w => {
+                const numIndex = card.numbers.indexOf(selectedMoveId);
+                if (numIndex !== -1 && w.values[numIndex] !== null && w.values[numIndex] !== undefined) {
+                    newCard.weights.push({
+                        date: w.date,
+                        values: [w.values[numIndex]]
+                    });
+                }
+            });
+            
+            // Rimuovi l'ID dalla scheda originale
+            card.numbers = card.numbers.filter(n => n !== selectedMoveId);
+            
+            // Se la scheda originale ha ancora ID, aggiorna i pesi
+            if (card.numbers.length > 0) {
+                const updatedWeights = [];
+                card.weights.forEach(w => {
+                    const newValues = w.values.filter((_, i) => card.numbers.includes(card.numbers[i]));
+                    if (newValues.some(v => v !== null && v !== undefined)) {
+                        updatedWeights.push({
+                            date: w.date,
+                            values: newValues
+                        });
+                    }
+                });
+                card.weights = updatedWeights;
+                cards[cardIndex] = card;
+            } else {
+                // Se non ci sono più ID, rimuovi la scheda
+                cards.splice(cardIndex, 1);
+            }
+            
+            // Aggiungi la nuova scheda
+            cards.push(newCard);
+            break;
+    }
+    
+    saveData();
+    renderCards();
+    closeActionModal();
+}
+
+// Apre il modale archivio
+function openArchiveModal() {
+    renderArchive();
+    archiveModal.classList.add('active');
+}
+
+// Chiude il modale archivio
+function closeArchiveModal() {
+    archiveModal.classList.remove('active');
+}
+
+// Filtra e renderizza l'archivio
+function renderArchive(filter = 'all') {
+    currentFilter = filter;
+    
+    // Aggiorna i pulsanti del filtro
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.status === filter) {
+            btn.classList.add('active');
+        }
+    });
+    
+    const filteredArchive = filter === 'all' 
+        ? archive 
+        : archive.filter(a => a.status === filter);
+    
+    if (filteredArchive.length === 0) {
+        archiveList.innerHTML = '<p class="empty-archive">Nessuna scheda archiviata.</p>';
+        return;
+    }
+    
+    archiveList.innerHTML = '';
+    
+    filteredArchive.forEach(item => {
+        const cardElement = document.createElement('div');
+        cardElement.className = 'archive-card';
+        
+        const numbersText = item.numbers.join(', ');
+        const formattedDate = new Date(item.archivedAt).toLocaleDateString('it-IT');
+        const statusText = item.status === 'deceduto' ? 'Deceduto' : 'Liberato';
+        
+        cardElement.innerHTML = `
+            <div class="archive-card-header">
+                <span class="archive-card-numbers">${numbersText}</span>
+                <span class="archive-card-status ${item.status}">${statusText}</span>
+            </div>
+            <div class="archive-card-info">
+                Archiviato il: ${formattedDate} | ${item.weights.length} registrazioni
+            </div>
+        `;
+        
+        archiveList.appendChild(cardElement);
+    });
+}
+
+// Apre il modale dei pesi per una card
+function openWeightModal(card) {
+    // Aggiorna il titolo
+    const numbersText = card.numbers.join(', ');
+    currentCardTitle.textContent = `Scheda #${numbersText}`;
+    cardNumbersDisplay.textContent = `ID: ${numbersText}`;
     
     // Crea le intestazioni della tabella
-    weightHeaders.innerHTML = groupCards.map(c => `<th>Scheda #${c.number}</th>`).join('');
+    weightsTableHead.innerHTML = `
+        <tr>
+            <th>Data</th>
+            ${card.numbers.map(num => `<th>ID ${num}</th>`).join('')}
+        </tr>
+    `;
     
     // Ottieni tutte le date uniche
     const allDates = new Set();
-    groupCards.forEach(c => {
-        c.weights.forEach(w => allDates.add(w.date));
-    });
+    card.weights.forEach(w => allDates.add(w.date));
     
     const sortedDates = Array.from(allDates).sort((a, b) => new Date(b) - new Date(a));
     
@@ -227,11 +437,19 @@ function openWeightModal(card) {
             const formattedDate = new Date(date).toLocaleDateString('it-IT');
             row.innerHTML = `<td>${formattedDate}</td>`;
             
-            groupCards.forEach(c => {
-                const weightForDate = c.weights.find(w => w.date === date);
-                const cellValue = weightForDate ? `${weightForDate.value} g` : '-';
-                row.innerHTML += `<td>${cellValue}</td>`;
-            });
+            // Aggiungi i pesi per ogni ID
+            const weightRecord = card.weights.find(w => w.date === date);
+            if (weightRecord) {
+                card.numbers.forEach((num, index) => {
+                    const value = weightRecord.values[index];
+                    const cellValue = value !== null && value !== undefined ? `${value} g` : '-';
+                    row.innerHTML += `<td>${cellValue}</td>`;
+                });
+            } else {
+                card.numbers.forEach(() => {
+                    row.innerHTML += '<td>-</td>';
+                });
+            }
             
             weightsTableBody.appendChild(row);
         });
@@ -239,12 +457,12 @@ function openWeightModal(card) {
     
     // Crea gli input per l'inserimento dei pesi
     weightInputsContainer.innerHTML = '';
-    groupCards.forEach(c => {
+    card.numbers.forEach(num => {
         const inputGroup = document.createElement('div');
         inputGroup.className = 'weight-input-group';
         inputGroup.innerHTML = `
-            <label for="weight-${c.id}">Scheda #${c.number}:</label>
-            <input type="number" id="weight-${c.id}" min="1" step="1" placeholder="Peso in grammi" required>
+            <label for="weight-${num}">ID ${num}:</label>
+            <input type="number" id="weight-${num}" min="1" step="1" placeholder="Peso in grammi" required>
         `;
         weightInputsContainer.appendChild(inputGroup);
     });
@@ -255,11 +473,9 @@ function openWeightModal(card) {
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const yyyy = today.getFullYear();
     weightDateInput.value = `${dd}/${mm}/${yyyy}`;
-    weightDateInput.placeholder = 'GG/MM/AAAA';
     
-    // Salva il riferimento al gruppo corrente
+    // Salva il riferimento alla card corrente
     weightModal.dataset.currentCardId = card.id;
-    weightModal.dataset.groupId = group ? group.id : '';
     
     weightModal.classList.add('active');
 }
@@ -268,19 +484,14 @@ function openWeightModal(card) {
 function closeWeightModal() {
     weightModal.classList.remove('active');
     weightModal.dataset.currentCardId = '';
-    weightModal.dataset.groupId = '';
 }
 
-// Aggiunge un nuovo peso alla card/gruppo corrente
+// Aggiunge un nuovo peso alla card corrente
 function addWeight() {
     const cardId = weightModal.dataset.currentCardId;
-    const groupId = weightModal.dataset.groupId;
+    const card = cards.find(c => c.id === cardId);
     
-    const currentCard = cards.find(c => c.id === cardId);
-    if (!currentCard) return;
-    
-    const group = groups.find(g => g.id === groupId);
-    const groupCards = group ? group.cardIds.map(id => cards.find(c => c.id === id)).filter(c => c) : [currentCard];
+    if (!card) return;
     
     // Validazione data (formato dd/mm/yyyy)
     const dateStr = weightDateInput.value.trim();
@@ -311,36 +522,48 @@ function addWeight() {
     const dateKey = date.toISOString().split('T')[0];
     
     // Validazione pesi
-    const weights = [];
-    for (const c of groupCards) {
-        const input = document.getElementById(`weight-${c.id}`);
+    const values = [];
+    for (const num of card.numbers) {
+        const input = document.getElementById(`weight-${num}`);
         const value = parseInt(input.value);
         
         if (isNaN(value) || value <= 0) {
-            alert(`Per favore, inserisci un peso valido maggiore di 0 per la scheda #${c.number}`);
+            alert(`Per favore, inserisci un peso valido maggiore di 0 per l'ID ${num}`);
             return;
         }
-        weights.push({ cardId: c.id, value });
+        values.push(value);
     }
     
-    // Aggiungi i pesi a ogni card
-    for (const w of weights) {
-        const card = cards.find(c => c.id === w.cardId);
-        if (card) {
-            card.weights.push({
-                date: dateKey,
-                value: w.value
-            });
-        }
+    // Controlla se esiste già una registrazione per questa data
+    const existingWeightIndex = card.weights.findIndex(w => w.date === dateKey);
+    
+    if (existingWeightIndex !== -1) {
+        // Aggiorna i valori esistenti
+        card.weights[existingWeightIndex].values = values;
+    } else {
+        // Aggiungi nuova registrazione
+        card.weights.push({
+            date: dateKey,
+            values: values
+        });
     }
     
     saveData();
     renderCards();
-    openWeightModal(currentCard);
+    openWeightModal(card);
 }
 
 // Event Listeners
 addCardButton.addEventListener('click', openAddCardModal);
+removeCardButton.addEventListener('click', () => {
+    if (cards.length > 0) {
+        openActionModal(null); // Apre il modale per selezionare la card
+        // In realtà, dobbiamo chiedere all'utente di selezionare una card prima
+        // Per ora, mostriamo un messaggio
+        alert('Seleziona una card cliccandoci sopra, poi premi - per aprire le azioni');
+    }
+});
+archiveButton.addEventListener('click', openArchiveModal);
 confirmCardBtn.addEventListener('click', () => {
     const number = parseInt(cardNumberInput.value);
     if (isNaN(number) || number < 1000 || number > 9999) {
@@ -348,7 +571,7 @@ confirmCardBtn.addEventListener('click', () => {
         return;
     }
     
-    const numberExists = cards.some(card => card.number === number);
+    const numberExists = cards.some(card => card.numbers.includes(number));
     if (numberExists) {
         alert('Esiste già una scheda con questo numero. Scegline un altro.');
         return;
@@ -360,6 +583,31 @@ confirmCardBtn.addEventListener('click', () => {
 cancelCardBtn.addEventListener('click', closeAddCardModal);
 addWeightBtn.addEventListener('click', addWeight);
 cancelWeightBtn.addEventListener('click', closeWeightModal);
+
+// Event listeners per il modale azione
+movedBtn.addEventListener('click', showMoveSelector);
+confirmActionBtn.addEventListener('click', () => {
+    // Determina l'azione in base a quale pulsante è stato cliccato
+    // Per semplicità, usiamo un dataset sull'azione selezionata
+    executeAction(confirmActionBtn.dataset.action);
+});
+cancelActionBtn.addEventListener('click', closeActionModal);
+
+// Aggiungi event listeners ai pulsanti azione
+deceasedBtn.addEventListener('click', () => {
+    confirmActionBtn.dataset.action = 'deceduto';
+});
+releasedBtn.addEventListener('click', () => {
+    confirmActionBtn.dataset.action = 'liberato';
+});
+
+// Event listeners per il modale archivio
+closeArchiveBtn.addEventListener('click', closeArchiveModal);
+archiveFilter.addEventListener('click', (e) => {
+    if (e.target.classList.contains('filter-btn')) {
+        renderArchive(e.target.dataset.status);
+    }
+});
 
 // Chiudi modale cliccando fuori
 addCardModal.addEventListener('click', (e) => {
@@ -374,6 +622,18 @@ weightModal.addEventListener('click', (e) => {
     }
 });
 
+actionModal.addEventListener('click', (e) => {
+    if (e.target === actionModal) {
+        closeActionModal();
+    }
+});
+
+archiveModal.addEventListener('click', (e) => {
+    if (e.target === archiveModal) {
+        closeArchiveModal();
+    }
+});
+
 // Permetti di chiudere con il tasto ESC
 addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -381,6 +641,10 @@ addEventListener('keydown', (e) => {
             closeAddCardModal();
         } else if (weightModal.classList.contains('active')) {
             closeWeightModal();
+        } else if (actionModal.classList.contains('active')) {
+            closeActionModal();
+        } else if (archiveModal.classList.contains('active')) {
+            closeArchiveModal();
         }
     }
 });
@@ -392,6 +656,50 @@ addEventListener('dragover', (e) => {
 
 addEventListener('drop', (e) => {
     e.preventDefault();
+});
+
+// Modifica il click sulla card: se si clicca con il tasto destro o si tiene premuto, apri il menu azione
+// Per mobile: lungo tap
+let longPressTimer = null;
+
+cardsContainer.addEventListener('click', (e) => {
+    const cardElement = e.target.closest('.card');
+    if (cardElement) {
+        const cardId = cardElement.dataset.id;
+        
+        // Se si clicca sul badge o si tiene premuto, apri il menu azione
+        if (e.target.classList.contains('card-group-badge') || e.button === 2) {
+            e.preventDefault();
+            openActionModal(cardId);
+        } else {
+            openWeightModal(cards.find(c => c.id === cardId));
+        }
+    }
+});
+
+// Gestione lungo tap per mobile
+cardsContainer.addEventListener('touchstart', (e) => {
+    const cardElement = e.target.closest('.card');
+    if (cardElement) {
+        longPressTimer = setTimeout(() => {
+            const cardId = cardElement.dataset.id;
+            openActionModal(cardId);
+        }, 1000);
+    }
+}, { passive: true });
+
+cardsContainer.addEventListener('touchend', () => {
+    if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+    }
+});
+
+cardsContainer.addEventListener('touchmove', () => {
+    if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+    }
 });
 
 // Inizializza l'applicazione

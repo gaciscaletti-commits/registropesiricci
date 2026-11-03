@@ -16,6 +16,9 @@
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     --border-radius: 12px;
     --group-color: #FF9800;
+    --deceased-color: #F44336;
+    --released-color: #9C27B0;
+    --archive-color: #795548;
 }
 
 /* Container principale */
@@ -30,13 +33,33 @@
 
 /* Header */
 .app-header {
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
     margin-bottom: 20px;
     padding: 15px 0;
     background-color: var(--primary-color);
     color: white;
     border-radius: var(--border-radius);
     margin: -20px -20px 20px -20px;
+}
+
+.archive-button {
+    position: absolute;
+    left: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+}
+
+.archive-button:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
 
 .app-header h1 {
@@ -79,21 +102,13 @@
     background-color: #f0fff0;
 }
 
-.card.in-group {
-    border-color: var(--group-color);
-    border-width: 2px;
-}
-
-.card-number {
-    font-size: 2rem;
+.card-numbers {
+    font-size: 1.5rem;
     font-weight: bold;
     color: var(--primary-color);
     text-align: center;
     margin: 10px 0;
-}
-
-.card.in-group .card-number {
-    color: var(--group-color);
+    line-height: 1.4;
 }
 
 .card-title {
@@ -122,19 +137,7 @@
     font-size: 1.2rem;
 }
 
-.card-group-badge {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background-color: var(--group-color);
-    color: white;
-    padding: 4px 8px;
-    border-radius: 20px;
-    font-size: 0.75rem;
-    font-weight: bold;
-}
-
-/* Pulsante Aggiungi */
+/* Pulsanti in basso */
 .add-button {
     position: fixed;
     bottom: 20px;
@@ -158,6 +161,32 @@
 }
 
 .add-button:active {
+    transform: scale(0.95);
+}
+
+.remove-button {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    width: 60px;
+    height: 60px;
+    background-color: var(--deceased-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 2rem;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: transform 0.2s ease, background-color 0.2s ease;
+    z-index: 100;
+}
+
+.remove-button:hover {
+    background-color: #d32f2f;
+    transform: scale(1.05);
+}
+
+.remove-button:active {
     transform: scale(0.95);
 }
 
@@ -268,6 +297,165 @@
     background-color: #388E3C;
 }
 
+/* Action buttons */
+.action-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.action-btn {
+    padding: 15px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#deceasedBtn {
+    background-color: var(--deceased-color);
+    color: white;
+}
+
+#deceasedBtn:hover {
+    background-color: #d32f2f;
+}
+
+#releasedBtn {
+    background-color: var(--released-color);
+    color: white;
+}
+
+#releasedBtn:hover {
+    background-color: #7b1fa2;
+}
+
+#movedBtn {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+#movedBtn:hover {
+    background-color: #1565c0;
+}
+
+.move-selector {
+    margin-top: 20px;
+}
+
+.move-selector p {
+    margin-bottom: 10px;
+    font-weight: 500;
+}
+
+.move-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.move-option {
+    padding: 8px 12px;
+    background-color: var(--border-color);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.move-option:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.move-option.selected {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* Modale archivio */
+.archive-modal {
+    max-width: 600px;
+}
+
+.archive-filter {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    justify-content: center;
+}
+
+.filter-btn {
+    padding: 8px 16px;
+    border: none;
+    background-color: var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.filter-btn:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.filter-btn.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.archive-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.archive-card {
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 12px;
+    border-left: 4px solid var(--archive-color);
+    transition: transform 0.2s ease;
+}
+
+.archive-card:hover {
+    transform: translateX(4px);
+}
+
+.archive-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.archive-card-numbers {
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+.archive-card-status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: white;
+    font-weight: bold;
+}
+
+.archive-card-status.deceased {
+    background-color: var(--deceased-color);
+}
+
+.archive-card-status.released {
+    background-color: var(--released-color);
+}
+
+.archive-card-info {
+    font-size: 0.9rem;
+    color: var(--text-light);
+}
+
 /* Modale pesi */
 .weight-modal {
     max-width: 900px;
@@ -277,6 +465,13 @@
     margin: 15px 0;
     max-height: 400px;
     overflow-y: auto;
+}
+
+.card-numbers-display {
+    text-align: center;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    color: var(--text-color);
 }
 
 .weights-table {
@@ -290,6 +485,7 @@
     padding: 10px;
     text-align: center;
     border: 1px solid var(--border-color);
+    min-width: 80px;
 }
 
 .weights-table th {
@@ -381,6 +577,11 @@
     .weights-table th,
     .weights-table td {
         padding: 6px;
+        min-width: 60px;
+    }
+    
+    .action-options {
+        flex-direction: column;
     }
 }
 
@@ -391,7 +592,8 @@
     100% { transform: scale(1); }
 }
 
-.add-button:active {
+.add-button:active,
+.remove-button:active {
     animation: pulse 0.3s ease;
 }
 
@@ -414,4 +616,11 @@
 
 .empty-weights.visible {
     display: block;
+}
+
+.empty-archive {
+    text-align: center;
+    color: var(--text-light);
+    padding: 40px 20px;
+    font-style: italic;
 }
