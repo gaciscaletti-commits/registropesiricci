@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro Pesi Animali</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>Registro Pesi</h1>
+        </header>
+        
+        <main class="cards-container" id="cardsContainer">
+            <!-- Le card verranno aggiunte dinamicamente tramite JavaScript -->
+        </main>
+        
+        <!-- Pulsante Aggiungi in basso a destra -->
+        <button class="add-button" id="addCardButton">+</button>
+    </div>
+    
+    <!-- Modale per aggiungere nuova card -->
+    <div class="modal" id="addCardModal">
+        <div class="modal-content">
+            <h2>Nuova Scheda</h2>
+            <div class="form-group">
+                <label for="cardNumber">Numero (4 cifre):</label>
+                <input type="number" id="cardNumber" min="1000" max="9999" placeholder="Inserisci numero" required>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn-cancel" id="cancelCardBtn">Annulla</button>
+                <button class="btn-confirm" id="confirmCardBtn">Crea</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modale per visualizzare/aggiungere pesi -->
+    <div class="modal" id="weightModal">
+        <div class="modal-content weight-modal">
+            <h2 id="modalCardTitle">Scheda #<span id="currentCardNumber"></span></h2>
+            
+            <div class="weights-list" id="weightsList">
+                <!-- I pesi verranno aggiunti dinamicamente -->
+            </div>
+            
+            <div class="add-weight-form">
+                <h3>Aggiungi Peso</h3>
+                <div class="form-group">
+                    <label for="weightDate">Data:</label>
+                    <input type="date" id="weightDate" required>
+                </div>
+                <div class="form-group">
+                    <label for="weightValue">Peso (g):</label>
+                    <input type="number" id="weightValue" min="1" step="1" placeholder="Peso in grammi" required>
+                </div>
+                <div class="modal-buttons">
+                    <button class="btn-cancel" id="cancelWeightBtn">Chiudi</button>
+                    <button class="btn-confirm" id="addWeightBtn">Aggiungi Peso</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
