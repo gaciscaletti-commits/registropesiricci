@@ -48,6 +48,7 @@ let draggedCard = null;
 let currentActionCardId = null;
 let selectedMoveId = null;
 let currentFilter = 'all';
+let lastClickedCardId = null;
 
 // Carica i dati dal localStorage
 function loadData() {
@@ -201,7 +202,25 @@ function renderCards() {
         });
         
         cardElement.addEventListener('click', (e) => {
+            // Rimuovi la selezione dalla card precedente
+            document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+            // Seleziona la card cliccata
+            cardElement.classList.add('selected');
+            // Salva l'ultima card cliccata
+            lastClickedCardId = card.id;
             openWeightModal(card);
+        });
+        
+        // Click destro per aprire il menu azioni
+        cardElement.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            // Rimuovi la selezione dalla card precedente
+            document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+            // Seleziona la card cliccata
+            cardElement.classList.add('selected');
+            // Salva l'ultima card cliccata
+            lastClickedCardId = card.id;
+            openActionModal(card.id);
         });
         
         cardsContainer.appendChild(cardElement);
@@ -556,10 +575,9 @@ function addWeight() {
 // Event Listeners
 addCardButton.addEventListener('click', openAddCardModal);
 removeCardButton.addEventListener('click', () => {
-    if (cards.length > 0) {
-        openActionModal(null); // Apre il modale per selezionare la card
-        // In realtà, dobbiamo chiedere all'utente di selezionare una card prima
-        // Per ora, mostriamo un messaggio
+    if (lastClickedCardId) {
+        openActionModal(lastClickedCardId);
+    } else {
         alert('Seleziona una card cliccandoci sopra, poi premi - per aprire le azioni');
     }
 });
@@ -681,14 +699,14 @@ cardsContainer.addEventListener('click', (e) => {
 cardsContainer.addEventListener('touchstart', (e) => {
     const cardElement = e.target.closest('.card');
     if (cardElement) {
+        const cardId = cardElement.dataset.id;
         longPressTimer = setTimeout(() => {
-            const cardId = cardElement.dataset.id;
             openActionModal(cardId);
         }, 1000);
     }
 }, { passive: true });
 
-cardsContainer.addEventListener('touchend', () => {
+cardsContainer.addEventListener('touchend', (e) => {
     if (longPressTimer) {
         clearTimeout(longPressTimer);
         longPressTimer = null;
