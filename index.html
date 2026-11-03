@@ -17,8 +17,7 @@
             <!-- Le card verranno aggiunte dinamicamente tramite JavaScript -->
         </main>
         
-        <!-- Pulsanti in basso -->
-        <button class="remove-button" id="removeCardButton">-</button>
+        <!-- Pulsante in basso -->
         <button class="add-button" id="addCardButton">+</button>
     </div>
     
@@ -78,7 +77,10 @@
     <!-- Modale per visualizzare/aggiungere pesi -->
     <div class="modal" id="weightModal">
         <div class="modal-content weight-modal">
-            <h2 id="modalCardTitle">Scheda</h2>
+            <div class="weight-modal-header">
+                <h2 id="modalCardTitle">Scheda</h2>
+                <button class="remove-button visible" id="removeCardButton">-</button>
+            </div>
             
             <div class="weights-table-container">
                 <div class="card-numbers-display" id="cardNumbersDisplay"></div>

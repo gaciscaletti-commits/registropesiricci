@@ -202,28 +202,16 @@ function renderCards() {
         });
         
         cardElement.addEventListener('click', (e) => {
-            // Rimuovi la selezione dalla card precedente
-            document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
-            // Seleziona la card cliccata
-            cardElement.classList.add('selected');
             // Salva l'ultima card cliccata
             lastClickedCardId = card.id;
-            // Mostra il tasto "-"
-            removeCardButton.classList.add('visible');
             openWeightModal(card);
         });
         
         // Click destro per aprire il menu azioni
         cardElement.addEventListener('contextmenu', (e) => {
             e.preventDefault();
-            // Rimuovi la selezione dalla card precedente
-            document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
-            // Seleziona la card cliccata
-            cardElement.classList.add('selected');
             // Salva l'ultima card cliccata
             lastClickedCardId = card.id;
-            // Mostra il tasto "-"
-            removeCardButton.classList.add('visible');
             openActionModal(card.id);
         });
         
@@ -240,9 +228,6 @@ function openAddCardModal() {
 // Chiude il modale per aggiungere una nuova card
 function closeAddCardModal() {
     addCardModal.classList.remove('active');
-    // Nascondi il tasto "-" e deseleziona le card
-    removeCardButton.classList.remove('visible');
-    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
     lastClickedCardId = null;
 }
 
@@ -269,9 +254,6 @@ function closeActionModal() {
     selectedMoveId = null;
     moveSelector.style.display = 'none';
     actionModal.classList.remove('active');
-    // Nascondi il tasto "-" e deseleziona le card
-    removeCardButton.classList.remove('visible');
-    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
     lastClickedCardId = null;
 }
 
@@ -385,9 +367,6 @@ function openArchiveModal() {
 // Chiude il modale archivio
 function closeArchiveModal() {
     archiveModal.classList.remove('active');
-    // Nascondi il tasto "-" e deseleziona le card
-    removeCardButton.classList.remove('visible');
-    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
     lastClickedCardId = null;
 }
 
@@ -519,9 +498,6 @@ function openWeightModal(card) {
 function closeWeightModal() {
     weightModal.classList.remove('active');
     weightModal.dataset.currentCardId = '';
-    // Nascondi il tasto "-" e deseleziona le card
-    removeCardButton.classList.remove('visible');
-    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
     lastClickedCardId = null;
 }
 
@@ -595,10 +571,13 @@ function addWeight() {
 // Event Listeners
 addCardButton.addEventListener('click', openAddCardModal);
 removeCardButton.addEventListener('click', () => {
-    if (lastClickedCardId) {
+    if (weightModal.classList.contains('active')) {
+        // Se siamo nel modale pesi, apri il menu azioni per la card corrente
+        openActionModal(weightModal.dataset.currentCardId);
+    } else if (lastClickedCardId) {
         openActionModal(lastClickedCardId);
     } else {
-        alert('Seleziona una card cliccandoci sopra, poi premi - per aprire le azioni');
+        alert('Seleziona una card cliccandoci sopra');
     }
 });
 archiveButton.addEventListener('click', openArchiveModal);
@@ -744,9 +723,6 @@ cardsContainer.addEventListener('touchmove', () => {
 function init() {
     loadData();
     renderCards();
-    // Assicurati che il tasto "-" sia nascosto all'avvio
-    removeCardButton.classList.remove('visible');
-    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
     lastClickedCardId = null;
 }
 

@@ -171,20 +171,6 @@
 }
 
 .remove-button {
-    position: fixed;
-    bottom: 20px;
-    left: 20px;
-    width: 60px;
-    height: 60px;
-    background-color: var(--deceased-color);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    font-size: 2rem;
-    cursor: pointer;
-    box-shadow: var(--shadow);
-    transition: transform 0.2s ease, background-color 0.2s ease;
-    z-index: 100;
     display: none;
 }
 
@@ -470,6 +456,20 @@
 /* Modale pesi */
 .weight-modal {
     max-width: 900px;
+}
+
+.weight-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.weight-modal-header .remove-button {
+    width: 40px;
+    height: 40px;
+    font-size: 1.5rem;
+    display: block;
 }
 
 .weights-table-container {
