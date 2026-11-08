@@ -5,10 +5,6 @@
     box-sizing: border-box;
 }
 
-body {
-    font-family: 'American Typewriter', 'Courier Prime', 'Courier New', monospace;
-}
-
 :root {
     --primary-color: #4CAF50;
     --secondary-color: #2196F3;

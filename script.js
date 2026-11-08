@@ -23,6 +23,7 @@ const actionOptions = document.getElementById('actionOptions');
 const movedBtn = document.getElementById('movedBtn');
 const moveSelector = document.getElementById('moveSelector');
 const moveOptions = document.getElementById('moveOptions');
+const idSelectorText = document.getElementById('idSelectorText');
 const confirmActionBtn = document.getElementById('confirmActionBtn');
 const cancelActionBtn = document.getElementById('cancelActionBtn');
 const deleteBtn = document.getElementById('deleteBtn');
@@ -152,9 +153,10 @@ function mergeCards(card1Id, card2Id) {
 }
 
 // Calcola il trend del peso di una scheda confrontando le due registrazioni più recenti.
-// Per schede con più ID usa la media dei pesi non nulli di ciascuna registrazione.
+// Solo per schede con un singolo ID: per più ID la media non sarebbe significativa.
 function getCardTrend(card) {
     if (!card.weights || card.weights.length < 2) return null;
+    if (card.numbers.length > 1) return null;
     
     const sorted = [...card.weights].sort((a, b) => new Date(a.date) - new Date(b.date));
     const last = sorted[sorted.length - 1];
@@ -199,11 +201,11 @@ function renderCards() {
         const numbersText = card.numbers.join(', ');
         const weightsCount = card.weights.length;
         
-        // Trend del peso (ultime due registrazioni)
+        // Trend del peso (solo schede con un ID singolo)
         const trend = getCardTrend(card);
         const trendHtml = trend
             ? `<span class="card-trend ${trend.cls}">${trend.emoji} ${trend.formatted}</span>`
-            : (weightsCount > 0 ? '<span class="card-trend flat">📊 —</span>' : '');
+            : (weightsCount > 0 && card.numbers.length === 1 ? '<span class="card-trend flat">📊 —</span>' : '');
         
         cardElement.innerHTML = `
             <div class="card-numbers">${numbersText}</div>
@@ -273,10 +275,7 @@ function openActionModal(cardId) {
     currentActionCardId = cardId;
     const card = cards.find(c => c.id === cardId);
     
-    if (!card) {
-        currentActionCardId = null;
-        return;
-    }
+    if (!card) return;
     
     // Reset della selezione precedente
     confirmActionBtn.dataset.action = '';
@@ -306,10 +305,14 @@ function closeActionModal() {
     lastClickedCardId = null;
 }
 
-// Mostra il selettore per lo spostamento
-function showMoveSelector() {
+// Mostra il selettore di ID (usato sia per "Spostato" che per "Deceduto" su schede multi-ID)
+function showIdSelector(action) {
     const card = cards.find(c => c.id === currentActionCardId);
     if (!card || card.numbers.length <= 1) return;
+    
+    idSelectorText.textContent = action === 'moved'
+        ? 'Seleziona l\'ID da spostare:'
+        : 'Seleziona l\'ID deceduto:';
     
     moveOptions.innerHTML = '';
     card.numbers.forEach(num => {
@@ -339,9 +342,66 @@ function executeAction(action) {
     const card = cards[cardIndex];
     
     switch (action) {
-        case 'deceased':
-        case 'released':
-            // Archivia la scheda (data locale, non UTC)
+        case 'deceased': {
+            // Data locale di oggi (non UTC)
+            const now = new Date();
+            const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            
+            if (card.numbers.length > 1) {
+                // Scheda multi-ID: deceda solo l'ID selezionato
+                if (!selectedMoveId) {
+                    alert('Seleziona quale ID è deceduto');
+                    return;
+                }
+                
+                const idx = card.numbers.indexOf(selectedMoveId);
+                
+                // Archivia una scheda con il solo ID deceduto e i suoi pesi
+                const decWeights = [];
+                card.weights.forEach(w => {
+                    const v = w.values[idx];
+                    if (v !== null && v !== undefined) {
+                        decWeights.push({ date: w.date, values: [v] });
+                    }
+                });
+                archive.push({
+                    id: 'arch-' + Date.now().toString(),
+                    numbers: [selectedMoveId],
+                    weights: decWeights,
+                    status: 'deceased',
+                    archivedAt: todayKey
+                });
+                
+                // Rimuove l'ID deceduto dalla scheda originale
+                card.numbers = card.numbers.filter(n => n !== selectedMoveId);
+                const remWeights = [];
+                card.weights.forEach(w => {
+                    const nv = w.values.filter((_, i) => i !== idx);
+                    if (nv.some(v => v !== null && v !== undefined)) {
+                        remWeights.push({ date: w.date, values: nv });
+                    }
+                });
+                card.weights = remWeights;
+                
+                if (card.numbers.length === 0) {
+                    cards.splice(cardIndex, 1);
+                } else {
+                    cards[cardIndex] = card;
+                }
+            } else {
+                // Scheda singola: archivia tutta la scheda
+                archive.push({
+                    ...card,
+                    status: action,
+                    archivedAt: todayKey
+                });
+                cards.splice(cardIndex, 1);
+            }
+            break;
+        }
+        
+        case 'released': {
+            // Data locale di oggi (non UTC)
             const now = new Date();
             const archivedCard = {
                 ...card,
@@ -351,6 +411,7 @@ function executeAction(action) {
             archive.push(archivedCard);
             cards.splice(cardIndex, 1);
             break;
+        }
             
         case 'delete':
             if (!confirm('Eliminare definitivamente questa scheda? L\'operazione non è reversibile.')) {
@@ -688,7 +749,9 @@ cancelWeightBtn.addEventListener('click', closeWeightModal);
 // Event listeners per il modale azione
 movedBtn.addEventListener('click', () => {
     confirmActionBtn.dataset.action = 'moved';
-    showMoveSelector();
+    selectedMoveId = null;
+    document.querySelectorAll('.move-option').forEach(opt => opt.classList.remove('selected'));
+    showIdSelector('moved');
 });
 confirmActionBtn.addEventListener('click', () => {
     const action = confirmActionBtn.dataset.action;
@@ -705,6 +768,16 @@ deceasedBtn.addEventListener('click', () => {
     confirmActionBtn.dataset.action = 'deceased';
     document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('selected'));
     deceasedBtn.classList.add('selected');
+    selectedMoveId = null;
+    document.querySelectorAll('.move-option').forEach(opt => opt.classList.remove('selected'));
+    
+    // Su schede multi-ID chiedi quale ID è deceduto
+    const card = cards.find(c => c.id === currentActionCardId);
+    if (card && card.numbers.length > 1) {
+        showIdSelector('deceased');
+    } else {
+        moveSelector.style.display = 'none';
+    }
 });
 releasedBtn.addEventListener('click', () => {
     confirmActionBtn.dataset.action = 'released';
@@ -751,15 +824,14 @@ archiveModal.addEventListener('click', (e) => {
 });
 
 // Permetti di chiudere con il tasto ESC
-// (il menu azioni sta sopra la scheda: va chiuso prima)
 addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        if (actionModal.classList.contains('active')) {
-            closeActionModal();
-        } else if (addCardModal.classList.contains('active')) {
+        if (addCardModal.classList.contains('active')) {
             closeAddCardModal();
         } else if (weightModal.classList.contains('active')) {
             closeWeightModal();
+        } else if (actionModal.classList.contains('active')) {
+            closeActionModal();
         } else if (archiveModal.classList.contains('active')) {
             closeArchiveModal();
         }
@@ -780,19 +852,16 @@ addEventListener('drop', (e) => {
 let longPressTimer = null;
 
 cardsContainer.addEventListener('click', (e) => {
-    // Se il menu azioni è già aperto (es. dopo un lungo tap), ignora il click successivo
-    if (actionModal.classList.contains('active')) return;
-    
     const cardElement = e.target.closest('.card');
     if (cardElement) {
         const cardId = cardElement.dataset.id;
-        const card = cards.find(c => c.id === cardId);
         
+        // Se si clicca sul badge o si tiene premuto, apri il menu azione
         if (e.target.classList.contains('card-group-badge') || e.button === 2) {
             e.preventDefault();
             openActionModal(cardId);
-        } else if (card) {
-            openWeightModal(card);
+        } else {
+            openWeightModal(cards.find(c => c.id === cardId));
         }
     }
 });
