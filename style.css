@@ -303,11 +303,16 @@
 
 .action-btn {
     padding: 15px;
-    border: none;
+    border: 2px solid transparent;
     border-radius: 8px;
     font-size: 1rem;
     cursor: pointer;
     transition: all 0.2s ease;
+}
+
+.action-btn.selected {
+    border-color: #333;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.2);
 }
 
 #deceasedBtn {
@@ -635,3 +640,4 @@
     padding: 40px 20px;
     font-style: italic;
 }
+

@@ -69,9 +69,15 @@ function saveData() {
     localStorage.setItem('animalArchive', JSON.stringify(archive));
 }
 
-// Genera un numero casuale a 4 cifre
+// Genera un numero casuale a 4 cifre non già in uso
 function generateRandomNumber() {
-    return Math.floor(1000 + Math.random() * 9000);
+    let number;
+    let attempts = 0;
+    do {
+        number = Math.floor(1000 + Math.random() * 9000);
+        attempts++;
+    } while (cards.some(card => card.numbers.includes(number)) && attempts < 100);
+    return number;
 }
 
 // Crea una nuova card
@@ -201,12 +207,6 @@ function renderCards() {
             }
         });
         
-        cardElement.addEventListener('click', (e) => {
-            // Salva l'ultima card cliccata
-            lastClickedCardId = card.id;
-            openWeightModal(card);
-        });
-        
         // Click destro per aprire il menu azioni
         cardElement.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -238,6 +238,12 @@ function openActionModal(cardId) {
     
     if (!card) return;
     
+    // Reset della selezione precedente
+    confirmActionBtn.dataset.action = '';
+    document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('selected'));
+    selectedMoveId = null;
+    moveSelector.style.display = 'none';
+    
     // Mostra/nascondi il pulsante "Spostato" in base al numero di ID
     if (card.numbers.length > 1) {
         movedBtn.style.display = 'block';
@@ -252,6 +258,9 @@ function openActionModal(cardId) {
 function closeActionModal() {
     currentActionCardId = null;
     selectedMoveId = null;
+    confirmActionBtn.dataset.action = '';
+    document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('selected'));
+    document.querySelectorAll('.move-option').forEach(opt => opt.classList.remove('selected'));
     moveSelector.style.display = 'none';
     actionModal.classList.remove('active');
     lastClickedCardId = null;
@@ -293,10 +302,12 @@ function executeAction(action) {
         case 'deceased':
         case 'released':
             // Archivia la scheda
+            // Archivia la scheda (data locale, non UTC)
+            const now = new Date();
             const archivedCard = {
                 ...card,
                 status: action,
-                archivedAt: new Date().toISOString().split('T')[0]
+                archivedAt: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
             };
             archive.push(archivedCard);
             cards.splice(cardIndex, 1);
@@ -315,36 +326,38 @@ function executeAction(action) {
                 weights: []
             };
             
-            // Copia i pesi per l'ID selezionato
+            // Indice dell'ID spostato nella scheda originale (da calcolare PRIMA del filtro)
+            const movedIndex = card.numbers.indexOf(selectedMoveId);
+            
+            // Copia i pesi per l'ID selezionato e rimuovili dalla scheda originale
+            const updatedWeights = [];
             card.weights.forEach(w => {
-                const numIndex = card.numbers.indexOf(selectedMoveId);
-                if (numIndex !== -1 && w.values[numIndex] !== null && w.values[numIndex] !== undefined) {
+                const movedValue = w.values[movedIndex];
+                if (movedValue !== null && movedValue !== undefined) {
                     newCard.weights.push({
                         date: w.date,
-                        values: [w.values[numIndex]]
+                        values: [movedValue]
+                    });
+                }
+                
+                // Nuovi valori: tutti tranne quello all'indice spostato
+                const newValues = w.values.filter((_, i) => i !== movedIndex);
+                if (newValues.some(v => v !== null && v !== undefined)) {
+                    updatedWeights.push({
+                        date: w.date,
+                        values: newValues
                     });
                 }
             });
+            card.weights = updatedWeights;
             
             // Rimuovi l'ID dalla scheda originale
             card.numbers = card.numbers.filter(n => n !== selectedMoveId);
             
-            // Se la scheda originale ha ancora ID, aggiorna i pesi
+            // Se la scheda originale ha ancora ID, aggiornala, altrimenti rimuovila
             if (card.numbers.length > 0) {
-                const updatedWeights = [];
-                card.weights.forEach(w => {
-                    const newValues = w.values.filter((_, i) => card.numbers.includes(card.numbers[i]));
-                    if (newValues.some(v => v !== null && v !== undefined)) {
-                        updatedWeights.push({
-                            date: w.date,
-                            values: newValues
-                        });
-                    }
-                });
-                card.weights = updatedWeights;
                 cards[cardIndex] = card;
             } else {
-                // Se non ci sono più ID, rimuovi la scheda
                 cards.splice(cardIndex, 1);
             }
             
@@ -399,7 +412,7 @@ function renderArchive(filter = 'all') {
         
         const numbersText = item.numbers.join(', ');
         const formattedDate = new Date(item.archivedAt).toLocaleDateString('it-IT');
-        const statusText = item.status === 'deceduto' ? 'Deceduto' : 'Liberato';
+        const statusText = item.status === 'deceased' ? 'Deceduto' : 'Liberato';
         
         cardElement.innerHTML = `
             <div class="archive-card-header">
@@ -529,12 +542,14 @@ function addWeight() {
     }
     
     const date = new Date(yyyy, mm - 1, dd);
-    if (isNaN(date.getTime())) {
+    // Verifica che la data sia reale (es. 31/02 non valido)
+    if (isNaN(date.getTime()) || date.getDate() !== dd || date.getMonth() !== mm - 1) {
         alert('Data non valida. Inserisci una data valida nel formato GG/MM/AAAA');
         return;
     }
     
-    const dateKey = date.toISOString().split('T')[0];
+    // Chiave data in formato locale (evita lo sfasamento UTC di toISOString)
+    const dateKey = `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
     
     // Validazione pesi
     const values = [];
@@ -602,20 +617,30 @@ addWeightBtn.addEventListener('click', addWeight);
 cancelWeightBtn.addEventListener('click', closeWeightModal);
 
 // Event listeners per il modale azione
-movedBtn.addEventListener('click', showMoveSelector);
+movedBtn.addEventListener('click', () => {
+    confirmActionBtn.dataset.action = 'moved';
+    showMoveSelector();
+});
 confirmActionBtn.addEventListener('click', () => {
-    // Determina l'azione in base a quale pulsante è stato cliccato
-    // Per semplicità, usiamo un dataset sull'azione selezionata
-    executeAction(confirmActionBtn.dataset.action);
+    const action = confirmActionBtn.dataset.action;
+    if (!action) {
+        alert('Seleziona prima un\'azione');
+        return;
+    }
+    executeAction(action);
 });
 cancelActionBtn.addEventListener('click', closeActionModal);
 
 // Aggiungi event listeners ai pulsanti azione
 deceasedBtn.addEventListener('click', () => {
-    confirmActionBtn.dataset.action = 'deceduto';
+    confirmActionBtn.dataset.action = 'deceased';
+    document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('selected'));
+    deceasedBtn.classList.add('selected');
 });
 releasedBtn.addEventListener('click', () => {
-    confirmActionBtn.dataset.action = 'liberato';
+    confirmActionBtn.dataset.action = 'released';
+    document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('selected'));
+    releasedBtn.classList.add('selected');
 });
 
 // Event listeners per il modale archivio
@@ -728,3 +753,4 @@ function init() {
 
 // Avvia l'applicazione quando il DOM è pronto
 document.addEventListener('DOMContentLoaded', init);
+
