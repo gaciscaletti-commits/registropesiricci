@@ -273,7 +273,10 @@ function openActionModal(cardId) {
     currentActionCardId = cardId;
     const card = cards.find(c => c.id === cardId);
     
-    if (!card) return;
+    if (!card) {
+        currentActionCardId = null;
+        return;
+    }
     
     // Reset della selezione precedente
     confirmActionBtn.dataset.action = '';
@@ -338,7 +341,6 @@ function executeAction(action) {
     switch (action) {
         case 'deceased':
         case 'released':
-            // Archivia la scheda
             // Archivia la scheda (data locale, non UTC)
             const now = new Date();
             const archivedCard = {
@@ -749,14 +751,15 @@ archiveModal.addEventListener('click', (e) => {
 });
 
 // Permetti di chiudere con il tasto ESC
+// (il menu azioni sta sopra la scheda: va chiuso prima)
 addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        if (addCardModal.classList.contains('active')) {
+        if (actionModal.classList.contains('active')) {
+            closeActionModal();
+        } else if (addCardModal.classList.contains('active')) {
             closeAddCardModal();
         } else if (weightModal.classList.contains('active')) {
             closeWeightModal();
-        } else if (actionModal.classList.contains('active')) {
-            closeActionModal();
         } else if (archiveModal.classList.contains('active')) {
             closeArchiveModal();
         }
@@ -777,16 +780,19 @@ addEventListener('drop', (e) => {
 let longPressTimer = null;
 
 cardsContainer.addEventListener('click', (e) => {
+    // Se il menu azioni è già aperto (es. dopo un lungo tap), ignora il click successivo
+    if (actionModal.classList.contains('active')) return;
+    
     const cardElement = e.target.closest('.card');
     if (cardElement) {
         const cardId = cardElement.dataset.id;
+        const card = cards.find(c => c.id === cardId);
         
-        // Se si clicca sul badge o si tiene premuto, apri il menu azione
         if (e.target.classList.contains('card-group-badge') || e.button === 2) {
             e.preventDefault();
             openActionModal(cardId);
-        } else {
-            openWeightModal(cards.find(c => c.id === cardId));
+        } else if (card) {
+            openWeightModal(card);
         }
     }
 });
