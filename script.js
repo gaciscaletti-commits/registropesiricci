@@ -151,6 +151,35 @@ function mergeCards(card1Id, card2Id) {
     renderCards();
 }
 
+// Calcola il trend del peso di una scheda confrontando le due registrazioni più recenti.
+// Per schede con più ID usa la media dei pesi non nulli di ciascuna registrazione.
+function getCardTrend(card) {
+    if (!card.weights || card.weights.length < 2) return null;
+    
+    const sorted = [...card.weights].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const last = sorted[sorted.length - 1];
+    const prev = sorted[sorted.length - 2];
+    
+    const avg = (rec) => {
+        const valid = rec.values.filter(v => v !== null && v !== undefined);
+        return valid.length ? valid.reduce((s, v) => s + v, 0) / valid.length : null;
+    };
+    
+    const lastAvg = avg(last);
+    const prevAvg = avg(prev);
+    
+    if (lastAvg === null || prevAvg === null || prevAvg === 0) return null;
+    
+    const pct = ((lastAvg - prevAvg) / prevAvg) * 100;
+    
+    return {
+        pct,
+        emoji: pct > 0 ? '📈' : (pct < 0 ? '📉' : '➖'),
+        cls: pct > 0 ? 'up' : (pct < 0 ? 'down' : 'flat'),
+        formatted: `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`
+    };
+}
+
 // Renderizza tutte le card
 function renderCards() {
     if (cards.length === 0) {
@@ -170,11 +199,18 @@ function renderCards() {
         const numbersText = card.numbers.join(', ');
         const weightsCount = card.weights.length;
         
+        // Trend del peso (ultime due registrazioni)
+        const trend = getCardTrend(card);
+        const trendHtml = trend
+            ? `<span class="card-trend ${trend.cls}">${trend.emoji} ${trend.formatted}</span>`
+            : (weightsCount > 0 ? '<span class="card-trend flat">📊 —</span>' : '');
+        
         cardElement.innerHTML = `
             <div class="card-numbers">${numbersText}</div>
             <div class="card-title">Scheda Animale</div>
             <div class="card-info">
                 <span class="card-count">${weightsCount} registrazioni</span>
+                ${trendHtml}
                 <span class="card-arrow">→</span>
             </div>
         `;

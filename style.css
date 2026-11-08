@@ -134,6 +134,30 @@
     font-size: 1.2rem;
 }
 
+/* Badge trend peso sulla card */
+.card-trend {
+    font-size: 0.9rem;
+    font-weight: bold;
+    padding: 3px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+}
+
+.card-trend.up {
+    color: #2e7d32;
+    background-color: rgba(76, 175, 80, 0.15);
+}
+
+.card-trend.down {
+    color: #c62828;
+    background-color: rgba(244, 67, 54, 0.12);
+}
+
+.card-trend.flat {
+    color: var(--text-light);
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
 /* Pulsanti in basso */
 .add-button {
     position: fixed;
