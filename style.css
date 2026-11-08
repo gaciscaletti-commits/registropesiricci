@@ -58,10 +58,6 @@
     transition: background 0.2s;
 }
 
-.archive-button:hover {
-    background: rgba(255, 255, 255, 0.3);
-}
-
 .app-header h1 {
     font-size: 1.8rem;
     font-weight: 600;
@@ -85,11 +81,6 @@
     border: 2px solid transparent;
     position: relative;
     user-select: none;
-}
-
-.card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .card.dragging {
@@ -161,11 +152,6 @@
     z-index: 100;
 }
 
-.add-button:hover {
-    background-color: #388E3C;
-    transform: scale(1.05);
-}
-
 .add-button:active {
     transform: scale(0.95);
 }
@@ -176,11 +162,6 @@
 
 .remove-button.visible {
     display: block;
-}
-
-.remove-button:hover {
-    background-color: #d32f2f;
-    transform: scale(1.05);
 }
 
 .remove-button:active {
@@ -274,10 +255,6 @@
     transition: background-color 0.2s ease;
 }
 
-.btn-cancel:hover {
-    background-color: #e0e0e0;
-}
-
 .btn-confirm {
     flex: 1;
     padding: 12px;
@@ -288,10 +265,6 @@
     font-size: 1rem;
     cursor: pointer;
     transition: background-color 0.2s ease;
-}
-
-.btn-confirm:hover {
-    background-color: #388E3C;
 }
 
 /* Action buttons */
@@ -320,26 +293,14 @@
     color: white;
 }
 
-#deceasedBtn:hover {
-    background-color: #d32f2f;
-}
-
 #releasedBtn {
     background-color: var(--released-color);
     color: white;
 }
 
-#releasedBtn:hover {
-    background-color: #7b1fa2;
-}
-
 #movedBtn {
     background-color: var(--secondary-color);
     color: white;
-}
-
-#movedBtn:hover {
-    background-color: #1565c0;
 }
 
 .move-selector {
@@ -364,11 +325,6 @@
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
-}
-
-.move-option:hover {
-    background-color: var(--primary-color);
-    color: white;
 }
 
 .move-option.selected {
@@ -397,11 +353,6 @@
     transition: all 0.2s ease;
 }
 
-.filter-btn:hover {
-    background-color: var(--primary-color);
-    color: white;
-}
-
 .filter-btn.active {
     background-color: var(--primary-color);
     color: white;
@@ -419,10 +370,6 @@
     margin-bottom: 12px;
     border-left: 4px solid var(--archive-color);
     transition: transform 0.2s ease;
-}
-
-.archive-card:hover {
-    transform: translateX(4px);
 }
 
 .archive-card-header {
@@ -641,3 +588,91 @@
     font-style: italic;
 }
 
+/* Stili hover SOLO per dispositivi con puntatore preciso.
+   Su touch (Safari iOS) l'hover sposta l'elemento sotto il dito e il click non scatta. */
+@media (hover: hover) and (pointer: fine) {
+    .archive-button:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    .card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .add-button:hover {
+        background-color: #388E3C;
+        transform: scale(1.05);
+    }
+
+    .remove-button:hover {
+        background-color: #d32f2f;
+        transform: scale(1.05);
+    }
+
+    .btn-cancel:hover {
+        background-color: #e0e0e0;
+    }
+
+    .btn-confirm:hover {
+        background-color: #388E3C;
+    }
+
+    #deceasedBtn:hover {
+        background-color: #d32f2f;
+    }
+
+    #releasedBtn:hover {
+        background-color: #7b1fa2;
+    }
+
+    #movedBtn:hover {
+        background-color: #1565c0;
+    }
+
+    .move-option:hover {
+        background-color: var(--primary-color);
+        color: white;
+    }
+
+    .filter-btn:hover {
+        background-color: var(--primary-color);
+        color: white;
+    }
+
+    .archive-card:hover {
+        transform: translateX(4px);
+    }
+}
+
+/* Compatibilità Safari/iOS */
+button,
+.card {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+/* Il modale azioni deve stare SOPRA il modale pesi (richiamato col tasto "-") */
+#actionModal {
+    z-index: 300;
+}
+
+/* Pulsante Elimina nel menu azioni */
+#deleteBtn {
+    background-color: #607d8b;
+    color: white;
+}
+
+/* Pulsante elimina sulle schede archiviate */
+.archive-delete-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 4px 6px;
+    border-radius: 6px;
+}
+
+.archive-delete-btn:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+}

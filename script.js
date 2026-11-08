@@ -25,6 +25,7 @@ const moveSelector = document.getElementById('moveSelector');
 const moveOptions = document.getElementById('moveOptions');
 const confirmActionBtn = document.getElementById('confirmActionBtn');
 const cancelActionBtn = document.getElementById('cancelActionBtn');
+const deleteBtn = document.getElementById('deleteBtn');
 
 // Elementi modale archivio
 const archiveFilter = document.getElementById('archiveFilter');
@@ -313,6 +314,13 @@ function executeAction(action) {
             cards.splice(cardIndex, 1);
             break;
             
+        case 'delete':
+            if (!confirm('Eliminare definitivamente questa scheda? L\'operazione non è reversibile.')) {
+                return;
+            }
+            cards.splice(cardIndex, 1);
+            break;
+            
         case 'moved':
             if (!selectedMoveId) {
                 alert('Seleziona un ID da spostare');
@@ -368,7 +376,20 @@ function executeAction(action) {
     
     saveData();
     renderCards();
+    
+    // Memorizza l'ID prima che closeActionModal lo azzeri
+    const actedCardId = currentActionCardId;
     closeActionModal();
+    
+    // Se il modale pesi è ancora aperto sotto, aggiornalo o chiudilo
+    if (weightModal.classList.contains('active')) {
+        const updatedCard = cards.find(c => c.id === actedCardId);
+        if (updatedCard) {
+            openWeightModal(updatedCard);
+        } else {
+            closeWeightModal();
+        }
+    }
 }
 
 // Apre il modale archivio
@@ -418,11 +439,21 @@ function renderArchive(filter = 'all') {
             <div class="archive-card-header">
                 <span class="archive-card-numbers">${numbersText}</span>
                 <span class="archive-card-status ${item.status}">${statusText}</span>
+                <button class="archive-delete-btn" title="Elimina definitivamente">🗑</button>
             </div>
             <div class="archive-card-info">
                 Archiviato il: ${formattedDate} | ${item.weights.length} registrazioni
             </div>
         `;
+        
+        // Elimina la scheda dall'archivio
+        cardElement.querySelector('.archive-delete-btn').addEventListener('click', () => {
+            if (confirm(`Eliminare definitivamente dall'archivio la scheda ${numbersText}?`)) {
+                archive.splice(archive.indexOf(item), 1);
+                saveData();
+                renderArchive(currentFilter);
+            }
+        });
         
         archiveList.appendChild(cardElement);
     });
@@ -641,6 +672,11 @@ releasedBtn.addEventListener('click', () => {
     confirmActionBtn.dataset.action = 'released';
     document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('selected'));
     releasedBtn.classList.add('selected');
+});
+deleteBtn.addEventListener('click', () => {
+    confirmActionBtn.dataset.action = 'delete';
+    document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('selected'));
+    deleteBtn.classList.add('selected');
 });
 
 // Event listeners per il modale archivio
