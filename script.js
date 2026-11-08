@@ -71,17 +71,6 @@ function saveData() {
     localStorage.setItem('animalArchive', JSON.stringify(archive));
 }
 
-// Genera un numero casuale a 4 cifre non già in uso
-function generateRandomNumber() {
-    let number;
-    let attempts = 0;
-    do {
-        number = Math.floor(1000 + Math.random() * 9000);
-        attempts++;
-    } while (cards.some(card => card.numbers.includes(number)) && attempts < 100);
-    return number;
-}
-
 // Crea una nuova card
 function createCard(number) {
     const newCard = {
@@ -260,8 +249,9 @@ function renderCards() {
 
 // Apre il modale per aggiungere una nuova card
 function openAddCardModal() {
-    cardNumberInput.value = generateRandomNumber();
+    cardNumberInput.value = '';
     addCardModal.classList.add('active');
+    cardNumberInput.focus();
 }
 
 // Chiude il modale per aggiungere una nuova card
@@ -613,13 +603,26 @@ function openWeightModal(card) {
     }
     
     // Crea gli input per l'inserimento dei pesi
+    // Suggerisce in grigio l'ultimo peso registrato per ciascun ID
+    const sortedWeights = [...card.weights].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const lastWeightFor = (num) => {
+        const numIndex = card.numbers.indexOf(num);
+        for (const rec of sortedWeights) {
+            const v = rec.values[numIndex];
+            if (v !== null && v !== undefined) return v;
+        }
+        return null;
+    };
+    
     weightInputsContainer.innerHTML = '';
     card.numbers.forEach(num => {
+        const lastValue = lastWeightFor(num);
+        const suggestion = lastValue !== null ? `Ultimo: ${lastValue} g` : 'Peso in grammi';
         const inputGroup = document.createElement('div');
         inputGroup.className = 'weight-input-group';
         inputGroup.innerHTML = `
             <label for="weight-${num}">ID ${num}:</label>
-            <input type="number" id="weight-${num}" min="1" step="1" placeholder="Peso in grammi" required>
+            <input type="number" id="weight-${num}" min="1" step="1" placeholder="${suggestion}" required>
         `;
         weightInputsContainer.appendChild(inputGroup);
     });
