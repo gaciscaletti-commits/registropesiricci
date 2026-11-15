@@ -61,27 +61,37 @@ let lastClickedCardId = null;
 // Se l'app viene aperta come file locale (senza server) usa il localStorage del browser.
 const API_URL = '/api/data';
 
+// Vero solo se all'avvio è stato trovato un server con l'API /api/data.
+// Una pagina su hosting statico (es. GitHub Pages) NON è in modalità server:
+// i dati restano nel localStorage del browser.
+let useServer = false;
+
 function serverMode() {
     return location.protocol === 'http:' || location.protocol === 'https:';
 }
 
-// Carica i dati dal server o, in assenza di server, dal localStorage
+// Carica i dati: prova il server solo se l'API risponde davvero con JSON,
+// altrimenti (file locale, GitHub Pages, hosting statico) usa il localStorage
 async function loadData() {
+    useServer = false;
+    
     if (serverMode()) {
         try {
             const res = await fetch(API_URL);
-            if (res.ok) {
+            const contentType = res.headers.get('content-type') || '';
+            if (res.ok && contentType.includes('application/json')) {
                 const data = await res.json();
                 cards = Array.isArray(data.cards) ? data.cards : [];
                 archive = Array.isArray(data.archive) ? data.archive : [];
+                useServer = true;
                 return;
             }
         } catch (err) {
-            console.error('Impossibile contattare il server:', err);
-            alert('Impossibile caricare i dati dal server. Verifica che il server sia attivo.');
-            return;
+            // Nessun server raggiungibile: si prosegue in modalità locale
+            console.warn('Server non disponibile, uso il localStorage:', err);
         }
     }
+    
     const savedCards = localStorage.getItem('animalCards');
     const savedArchive = localStorage.getItem('animalArchive');
     if (savedCards) {
@@ -92,9 +102,9 @@ async function loadData() {
     }
 }
 
-// Salva i dati sul server o, in assenza di server, nel localStorage
+// Salva i dati sul server (solo se attivo) o, in assenza, nel localStorage
 function saveData() {
-    if (serverMode()) {
+    if (useServer) {
         fetch(API_URL, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -987,16 +997,17 @@ archiveModal.addEventListener('click', (e) => {
 });
 
 // Permetti di chiudere con il tasto ESC
+// Ordina i modali dal più alto: menu azioni sta sopra la scheda pesi
 addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         if (milkModal.classList.contains('active')) {
             closeMilkModal();
+        } else if (actionModal.classList.contains('active')) {
+            closeActionModal();
         } else if (addCardModal.classList.contains('active')) {
             closeAddCardModal();
         } else if (weightModal.classList.contains('active')) {
             closeWeightModal();
-        } else if (actionModal.classList.contains('active')) {
-            closeActionModal();
         } else if (archiveModal.classList.contains('active')) {
             closeArchiveModal();
         }
@@ -1017,16 +1028,19 @@ addEventListener('drop', (e) => {
 let longPressTimer = null;
 
 cardsContainer.addEventListener('click', (e) => {
+    // Se il menu azioni è già aperto (es. dopo un lungo tap), ignora il click successivo
+    if (actionModal.classList.contains('active')) return;
+    
     const cardElement = e.target.closest('.card');
     if (cardElement) {
         const cardId = cardElement.dataset.id;
+        const card = cards.find(c => c.id === cardId);
         
-        // Se si clicca sul badge o si tiene premuto, apri il menu azione
         if (e.target.classList.contains('card-group-badge') || e.button === 2) {
             e.preventDefault();
             openActionModal(cardId);
-        } else {
-            openWeightModal(cards.find(c => c.id === cardId));
+        } else if (card) {
+            openWeightModal(card);
         }
     }
 });
