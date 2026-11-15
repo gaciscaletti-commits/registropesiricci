@@ -523,6 +523,49 @@
     border-color: var(--primary-color);
 }
 
+/* Inserimento rapido multi-ID */
+.quick-weights-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    resize: vertical;
+}
+
+.quick-weights-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.assignment-preview {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: rgba(33, 150, 243, 0.07);
+    border-radius: 8px;
+    font-size: 0.95rem;
+}
+
+.assignment-preview .hint,
+.assignment-preview .error {
+    color: var(--text-light);
+    font-style: italic;
+}
+
+.assignment-preview .error {
+    color: #c62828;
+}
+
+.assignment-preview .assignment-row {
+    padding: 3px 0;
+}
+
+.assignment-preview .last {
+    color: var(--text-light);
+    font-size: 0.85rem;
+}
+
 /* Scrollbar personalizzata */
 ::-webkit-scrollbar {
     width: 8px;

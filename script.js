@@ -42,6 +42,9 @@ const weightsTableBody = document.getElementById('weightsTableBody');
 const emptyWeightsMsg = document.getElementById('emptyWeightsMsg');
 const weightDateInput = document.getElementById('weightDate');
 const weightInputsContainer = document.getElementById('weightInputsContainer');
+const quickWeightsGroup = document.getElementById('quickWeightsGroup');
+const quickWeightsInput = document.getElementById('quickWeightsInput');
+const assignmentPreview = document.getElementById('assignmentPreview');
 const addWeightBtn = document.getElementById('addWeightBtn');
 const cancelWeightBtn = document.getElementById('cancelWeightBtn');
 
@@ -637,8 +640,15 @@ function openWeightModal(card) {
         });
     }
     
-    // Crea gli input per l'inserimento dei pesi
-    // Suggerisce in grigio l'ultimo peso registrato per ciascun ID
+    // Crea gli input per l'inserimento dei pesi.
+    // Schede con 1 solo ID: input singolo con suggerimento dell'ultimo peso.
+    // Schede multi-ID: casella unica; l'app abbinerà i pesi agli ID più
+    // statisticamente probabili (minimizza la somma degli scostamenti dagli
+    // ultimi pesi noti, dato che i ricci cambiano peso in modo limitato).
+    const isMultiId = card.numbers.length > 1;
+    quickWeightsGroup.style.display = isMultiId ? 'block' : 'none';
+    weightInputsContainer.style.display = isMultiId ? 'none' : 'flex';
+    
     const sortedWeights = [...card.weights].sort((a, b) => new Date(b.date) - new Date(a.date));
     const lastWeightFor = (num) => {
         const numIndex = card.numbers.indexOf(num);
@@ -662,6 +672,11 @@ function openWeightModal(card) {
         weightInputsContainer.appendChild(inputGroup);
     });
     
+    if (isMultiId) {
+        quickWeightsInput.value = '';
+        assignmentPreview.innerHTML = `<p class="hint">Inserisci ${card.numbers.length} pesi: l'app li abbinerà automaticamente agli ID.</p>`;
+    }
+    
     // Imposta la data di default a oggi (formato dd/mm/yyyy)
     const today = new Date();
     const dd = String(today.getDate()).padStart(2, '0');
@@ -681,6 +696,98 @@ function closeWeightModal() {
     weightModal.dataset.currentCardId = '';
     lastClickedCardId = null;
 }
+
+// --- Assegnazione statistica dei pesi (schede multi-ID) ---
+
+// Ultimi pesi noti di una scheda, nell'ordine dei suoi ID (null = mai pesato)
+function getLastWeights(card) {
+    const sorted = [...card.weights].sort((a, b) => new Date(b.date) - new Date(a.date));
+    return card.numbers.map((num, i) => {
+        for (const rec of sorted) {
+            const v = rec.values[i];
+            if (v !== null && v !== undefined) return v;
+        }
+        return null;
+    });
+}
+
+// Trova l'abbinamento pesi→ID che minimizza la somma degli scostamenti assoluti
+// dagli ultimi pesi noti (i ricci cambiano peso di poco: l'abbinamento più
+// probabile è quello che devia meno dallo storico). Per ID mai pesati usa la
+// mediana dei pesi noti come pseudo-target. Restituisce, per ogni ID (in
+// ordine card.numbers), l'indice del peso inserito da assegnargli.
+function computeAssignment(values, targets) {
+    const k = targets.length;
+    const known = targets.filter(t => t !== null).sort((a, b) => a - b);
+    const fill = known.length ? known[Math.floor(known.length / 2)] : 0;
+    const t = targets.map(x => (x === null ? fill : x));
+    
+    if (k <= 8) {
+        // Forza bruta sulle permutazioni (max 8! = 40320 casi): istantaneo
+        let best = null;
+        let bestCost = Infinity;
+        const perm = values.map((_, i) => i);
+        const swap = (a, i, j) => { const tmp = a[i]; a[i] = a[j]; a[j] = tmp; };
+        const permute = (arr, n) => {
+            if (n === 1) {
+                let cost = 0;
+                for (let i = 0; i < k; i++) cost += Math.abs(values[arr[i]] - t[i]);
+                if (cost < bestCost) { bestCost = cost; best = arr.slice(); }
+                return;
+            }
+            for (let i = 0; i < n; i++) {
+                permute(arr, n - 1);
+                swap(arr, n % 2 === 0 ? i : 0, n - 1);
+            }
+        };
+        permute(perm, k);
+        return best;
+    }
+    
+    // Oltre 8 ID: approssimazione greedy per ordinamento
+    const idOrder = t.map((_, i) => i).sort((a, b) => t[a] - t[b]);
+    const valOrder = values.map((_, i) => i).sort((a, b) => values[a] - values[b]);
+    const result = new Array(k);
+    idOrder.forEach((idIdx, pos) => { result[idIdx] = valOrder[pos]; });
+    return result;
+}
+
+// Legge i pesi dalla casella unica (spazi, virgole, punti e virgola, a capo)
+function parseQuickWeights() {
+    const raw = quickWeightsInput.value.trim();
+    if (!raw) return [];
+    return raw.split(/[\s,;]+/).filter(Boolean).map(s => Math.round(Number(s)));
+}
+
+// Aggiorna l'anteprima dell'abbinamento mentre si digita
+function updateAssignmentPreview() {
+    const cardId = weightModal.dataset.currentCardId;
+    const card = cards.find(c => c.id === cardId);
+    if (!card || card.numbers.length <= 1) return;
+    
+    const values = parseQuickWeights();
+    if (values.length === 0) {
+        assignmentPreview.innerHTML = `<p class="hint">Inserisci ${card.numbers.length} pesi: l'app li abbinerà automaticamente agli ID.</p>`;
+        return;
+    }
+    if (values.some(v => isNaN(v) || v <= 0)) {
+        assignmentPreview.innerHTML = '<p class="error">Alcuni valori non sono pesi validi (interi maggiori di 0).</p>';
+        return;
+    }
+    if (values.length !== card.numbers.length) {
+        assignmentPreview.innerHTML = `<p class="hint">Inseriti ${values.length} su ${card.numbers.length} pesi.</p>`;
+        return;
+    }
+    
+    const targets = getLastWeights(card);
+    const assign = computeAssignment(values, targets);
+    assignmentPreview.innerHTML = card.numbers.map((num, i) => {
+        const last = targets[i] !== null ? ` <span class="last">(ultimo: ${targets[i]} g)</span>` : '';
+        return `<div class="assignment-row">ID ${num} &larr; <strong>${values[assign[i]]} g</strong>${last}</div>`;
+    }).join('');
+}
+
+quickWeightsInput.addEventListener('input', updateAssignmentPreview);
 
 // Aggiunge un nuovo peso alla card corrente
 function addWeight() {
@@ -721,15 +828,33 @@ function addWeight() {
     
     // Validazione pesi
     const values = [];
-    for (const num of card.numbers) {
-        const input = document.getElementById(`weight-${num}`);
-        const value = parseInt(input.value);
+    if (card.numbers.length > 1) {
+        // Scheda multi-ID: casella unica + assegnazione automatica
+        const entered = parseQuickWeights();
         
-        if (isNaN(value) || value <= 0) {
-            alert(`Per favore, inserisci un peso valido maggiore di 0 per l'ID ${num}`);
+        if (entered.length !== card.numbers.length) {
+            alert(`Inserisci ${card.numbers.length} pesi (uno per ID), separati da spazio o virgola.`);
             return;
         }
-        values.push(value);
+        const invalid = entered.find(v => isNaN(v) || v <= 0);
+        if (invalid !== undefined) {
+            alert('Per favore, inserisci solo pesi validi (interi maggiori di 0).');
+            return;
+        }
+        
+        const assign = computeAssignment(entered, getLastWeights(card));
+        card.numbers.forEach((_, i) => values.push(entered[assign[i]]));
+    } else {
+        for (const num of card.numbers) {
+            const input = document.getElementById(`weight-${num}`);
+            const value = parseInt(input.value);
+            
+            if (isNaN(value) || value <= 0) {
+                alert(`Per favore, inserisci un peso valido maggiore di 0 per l'ID ${num}`);
+                return;
+            }
+            values.push(value);
+        }
     }
     
     // Controlla se esiste già una registrazione per questa data

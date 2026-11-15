@@ -104,7 +104,12 @@
                     <input type="text" id="weightDate" placeholder="GG/MM/AAAA" maxlength="10" required>
                 </div>
                 <div id="weightInputsContainer" class="weight-inputs-container">
-                    <!-- Input per ogni ID verranno aggiunti qui -->
+                    <!-- Input per ogni ID verranno aggiunti qui (schede con 1 solo ID) -->
+                </div>
+                <div class="form-group quick-weights-group" id="quickWeightsGroup" style="display: none;">
+                    <label for="quickWeightsInput">Pesi (in qualsiasi ordine, separati da spazio o virgola):</label>
+                    <textarea id="quickWeightsInput" rows="2" inputmode="numeric" placeholder="Es: 25 27 24"></textarea>
+                    <div class="assignment-preview" id="assignmentPreview"></div>
                 </div>
                 <div class="modal-buttons">
                     <button class="btn-cancel" id="cancelWeightBtn">Chiudi</button>
