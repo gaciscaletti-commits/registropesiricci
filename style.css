@@ -700,3 +700,112 @@ button,
 .archive-delete-btn:hover {
     background-color: rgba(0, 0, 0, 0.08);
 }
+
+/* --- Fabbisogno latte --- */
+
+.weight-modal-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Pulsante latte: a sinistra del tasto "-" nell'intestazione della scheda */
+.milk-button {
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+    display: none;
+    border: none;
+    border-radius: 50%;
+    background-color: var(--secondary-color);
+    color: white;
+    cursor: pointer;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.milk-button.visible {
+    display: block;
+}
+
+.milk-button:active {
+    transform: scale(0.95);
+}
+
+/* Modale fabbisogno latte: sopra il modale pesi */
+#milkModal {
+    z-index: 300;
+}
+
+.milk-summary {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.milk-summary p {
+    margin: 6px 0;
+}
+
+.milk-id {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.milk-total {
+    font-size: 1.2rem;
+}
+
+.milk-formula {
+    font-size: 0.9rem;
+    color: var(--text-light);
+}
+
+/* Pulsanti numero pasti (3-8) */
+.meal-options {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.meal-btn {
+    width: 55px;
+    height: 55px;
+    border-radius: 50%;
+    border: none;
+    background-color: var(--border-color);
+    color: var(--text-color);
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.meal-btn.selected {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.meal-result {
+    text-align: center;
+    font-size: 1.1rem;
+    min-height: 30px;
+    margin-top: 10px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .milk-button:hover {
+        background-color: #1565c0;
+        transform: scale(1.05);
+    }
+
+    .meal-btn:hover {
+        background-color: var(--primary-color);
+        color: white;
+    }
+}

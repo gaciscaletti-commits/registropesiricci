@@ -80,7 +80,10 @@
         <div class="modal-content weight-modal">
             <div class="weight-modal-header">
                 <h2 id="modalCardTitle">Scheda</h2>
-                <button class="remove-button visible" id="removeCardButton">-</button>
+                <div class="weight-modal-header-actions">
+                    <button class="milk-button visible" id="milkCalcButton" title="Fabbisogno latte">🍼</button>
+                    <button class="remove-button visible" id="removeCardButton">-</button>
+                </div>
             </div>
             
             <div class="weights-table-container">
@@ -107,6 +110,26 @@
                     <button class="btn-cancel" id="cancelWeightBtn">Chiudi</button>
                     <button class="btn-confirm" id="addWeightBtn">Aggiungi Peso</button>
                 </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modale fabbisogno latte -->
+    <div class="modal" id="milkModal">
+        <div class="modal-content">
+            <h2>Fabbisogno Latte</h2>
+            <div class="move-selector" id="milkIdSelector" style="display: none;">
+                <p id="milkIdSelectorText">Seleziona l'ID del riccio:</p>
+                <div class="move-options" id="milkIdOptions"></div>
+            </div>
+            <div id="milkResult" style="display: none;">
+                <div class="milk-summary" id="milkSummary"></div>
+                <h3 style="text-align: center;">In quanti pasti vuoi dividerlo?</h3>
+                <div class="meal-options" id="mealOptions"></div>
+                <div class="meal-result" id="mealResult"></div>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn-cancel" id="closeMilkBtn">Chiudi</button>
             </div>
         </div>
     </div>

@@ -864,7 +864,9 @@ archiveModal.addEventListener('click', (e) => {
 // Permetti di chiudere con il tasto ESC
 addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        if (addCardModal.classList.contains('active')) {
+        if (milkModal.classList.contains('active')) {
+            closeMilkModal();
+        } else if (addCardModal.classList.contains('active')) {
             closeAddCardModal();
         } else if (weightModal.classList.contains('active')) {
             closeWeightModal();
@@ -939,3 +941,131 @@ async function init() {
 // Avvia l'applicazione quando il DOM è pronto
 document.addEventListener('DOMContentLoaded', init);
 
+
+// --- Fabbisogno latte ---
+
+// Elementi modale fabbisogno latte
+const milkModal = document.getElementById('milkModal');
+const milkCalcButton = document.getElementById('milkCalcButton');
+const milkIdSelector = document.getElementById('milkIdSelector');
+const milkIdOptions = document.getElementById('milkIdOptions');
+const milkResult = document.getElementById('milkResult');
+const milkSummary = document.getElementById('milkSummary');
+const mealOptions = document.getElementById('mealOptions');
+const mealResult = document.getElementById('mealResult');
+const closeMilkBtn = document.getElementById('closeMilkBtn');
+
+let milkDailyTotal = null;
+
+// Formula del fabbisogno: N^0,75 x 70 x 2, con N = peso del riccio in kg
+function calcMilkRequirement(weightGrams) {
+    const kg = weightGrams / 1000;
+    return 70 * Math.pow(kg, 0.75) * 2;
+}
+
+// Ultimo peso registrato (non nullo) per un ID della card
+function getLastWeightFor(card, num) {
+    const idx = card.numbers.indexOf(num);
+    if (idx === -1) return null;
+    const sorted = [...card.weights].sort((a, b) => new Date(b.date) - new Date(a.date));
+    for (const rec of sorted) {
+        const v = rec.values[idx];
+        if (v !== null && v !== undefined) return v;
+    }
+    return null;
+}
+
+// Formatta un numero con separatore italiano, max 1 decimale
+function fmtMilk(n) {
+    return n.toLocaleString('it-IT', { maximumFractionDigits: 1 });
+}
+
+// Apre il modale fabbisogno latte dalla scheda aperta
+function openMilkModal() {
+    const cardId = weightModal.dataset.currentCardId;
+    const card = cards.find(c => c.id === cardId);
+    if (!card) return;
+
+    milkDailyTotal = null;
+    milkResult.style.display = 'none';
+    mealResult.innerHTML = '';
+    milkIdOptions.innerHTML = '';
+
+    if (card.numbers.length > 1) {
+        // Scheda multi-ID: chiedi quale riccio
+        document.getElementById('milkIdSelectorText').textContent = 'Seleziona l\'ID del riccio:';
+        card.numbers.forEach(num => {
+            const option = document.createElement('button');
+            option.className = 'move-option';
+            option.textContent = num;
+            option.addEventListener('click', () => {
+                milkIdOptions.querySelectorAll('.move-option').forEach(o => o.classList.remove('selected'));
+                option.classList.add('selected');
+                showMilkResult(card, num);
+            });
+            milkIdOptions.appendChild(option);
+        });
+        milkIdSelector.style.display = 'block';
+    } else {
+        // Scheda singola: calcola direttamente
+        milkIdSelector.style.display = 'none';
+        showMilkResult(card, card.numbers[0]);
+    }
+
+    milkModal.classList.add('active');
+}
+
+// Mostra il fabbisogno giornaliero e i pulsanti per il numero di pasti
+function showMilkResult(card, num) {
+    const weight = getLastWeightFor(card, num);
+    if (weight === null) {
+        alert('Nessun peso registrato per l\'ID ' + num + '. Registra prima un peso.');
+        return;
+    }
+
+    milkDailyTotal = calcMilkRequirement(weight);
+
+    milkSummary.innerHTML = `
+        <p class="milk-id">ID ${num}</p>
+        <p class="milk-weight">Peso: ${weight} g</p>
+        <p class="milk-formula">N<sup>0,75</sup> &times; 70 &times; 2 (N = peso in kg)</p>
+        <p class="milk-total">Fabbisogno giornaliero: <strong>${fmtMilk(milkDailyTotal)}</strong></p>
+    `;
+    mealResult.innerHTML = '';
+    mealOptions.innerHTML = '';
+
+    // Opzioni numero pasti: da 3 a 8
+    for (let n = 3; n <= 8; n++) {
+        const btn = document.createElement('button');
+        btn.className = 'meal-btn';
+        btn.textContent = n;
+        btn.addEventListener('click', () => {
+            mealOptions.querySelectorAll('.meal-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            const perMeal = milkDailyTotal / n;
+            mealResult.innerHTML = `
+                <p>Con <strong>${n} pasti</strong>: <strong>${fmtMilk(perMeal)}</strong> per pasto</p>
+            `;
+        });
+        mealOptions.appendChild(btn);
+    }
+
+    milkIdSelector.style.display = 'none';
+    milkResult.style.display = 'block';
+}
+
+// Chiude il modale fabbisogno latte
+function closeMilkModal() {
+    milkModal.classList.remove('active');
+    milkDailyTotal = null;
+    mealResult.innerHTML = '';
+}
+
+milkCalcButton.addEventListener('click', openMilkModal);
+closeMilkBtn.addEventListener('click', closeMilkModal);
+
+milkModal.addEventListener('click', (e) => {
+    if (e.target === milkModal) {
+        closeMilkModal();
+    }
+});
