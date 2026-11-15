@@ -52,11 +52,35 @@ let selectedMoveId = null;
 let currentFilter = 'all';
 let lastClickedCardId = null;
 
-// Carica i dati dal localStorage
-function loadData() {
+// --- Persistenza dei dati ---
+// Con il server attivo (mini PC) i dati stanno in dati.json sul server: una sola copia
+// condivisa da tutti i dispositivi in LAN, e il backup è la copia di quel file.
+// Se l'app viene aperta come file locale (senza server) usa il localStorage del browser.
+const API_URL = '/api/data';
+
+function serverMode() {
+    return location.protocol === 'http:' || location.protocol === 'https:';
+}
+
+// Carica i dati dal server o, in assenza di server, dal localStorage
+async function loadData() {
+    if (serverMode()) {
+        try {
+            const res = await fetch(API_URL);
+            if (res.ok) {
+                const data = await res.json();
+                cards = Array.isArray(data.cards) ? data.cards : [];
+                archive = Array.isArray(data.archive) ? data.archive : [];
+                return;
+            }
+        } catch (err) {
+            console.error('Impossibile contattare il server:', err);
+            alert('Impossibile caricare i dati dal server. Verifica che il server sia attivo.');
+            return;
+        }
+    }
     const savedCards = localStorage.getItem('animalCards');
     const savedArchive = localStorage.getItem('animalArchive');
-    
     if (savedCards) {
         cards = JSON.parse(savedCards);
     }
@@ -65,10 +89,21 @@ function loadData() {
     }
 }
 
-// Salva i dati nel localStorage
+// Salva i dati sul server o, in assenza di server, nel localStorage
 function saveData() {
-    localStorage.setItem('animalCards', JSON.stringify(cards));
-    localStorage.setItem('animalArchive', JSON.stringify(archive));
+    if (serverMode()) {
+        fetch(API_URL, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cards, archive })
+        }).catch(err => {
+            console.error('Salvataggio sul server fallito:', err);
+            alert('Salvataggio sul server fallito. Verifica che il server sia attivo, altrimenti la modifica andrà persa.');
+        });
+    } else {
+        localStorage.setItem('animalCards', JSON.stringify(cards));
+        localStorage.setItem('animalArchive', JSON.stringify(archive));
+    }
 }
 
 // Crea una nuova card
@@ -895,8 +930,8 @@ cardsContainer.addEventListener('touchmove', () => {
 });
 
 // Inizializza l'applicazione
-function init() {
-    loadData();
+async function init() {
+    await loadData();
     renderCards();
     lastClickedCardId = null;
 }
