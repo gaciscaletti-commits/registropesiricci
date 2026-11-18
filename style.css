@@ -19,6 +19,7 @@
     --deceased-color: #F44336;
     --released-color: #9C27B0;
     --archive-color: #795548;
+    --header-color: #81D4FA;
 }
 
 /* Container principale */
@@ -39,8 +40,8 @@
     position: relative;
     margin-bottom: 20px;
     padding: 15px 0;
-    background-color: var(--primary-color);
-    color: white;
+    background-color: var(--header-color);
+    color: #01579B;
     border-radius: var(--border-radius);
     margin: -20px -20px 20px -20px;
 }
@@ -48,9 +49,9 @@
 .archive-button {
     position: absolute;
     left: 20px;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(1, 87, 155, 0.12);
     border: none;
-    color: white;
+    color: #01579B;
     padding: 8px 12px;
     border-radius: 6px;
     cursor: pointer;
@@ -65,6 +66,30 @@
 
 /* Container delle card */
 .cards-container {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+/* Sezione della home (gruppo per fabbisogno) */
+.cards-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cards-section h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.cards-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 16px;
@@ -623,7 +648,7 @@
 
 /* Responsive per mobile */
 @media (max-width: 600px) {
-    .cards-container {
+    .cards-grid {
         grid-template-columns: 1fr;
     }
     
@@ -695,7 +720,7 @@
    Su touch (Safari iOS) l'hover sposta l'elemento sotto il dito e il click non scatta. */
 @media (hover: hover) and (pointer: fine) {
     .archive-button:hover {
-        background: rgba(255, 255, 255, 0.3);
+        background: rgba(1, 87, 155, 0.22);
     }
 
     .card:hover {

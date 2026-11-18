@@ -388,7 +388,36 @@ alertsModal.addEventListener('click', (e) => {
     }
 });
 
-// Renderizza tutte le card
+// Peso medio di una scheda: media degli ultimi pesi noti dei suoi ID,
+// senza considerare le pesate a stomaco pieno (null se nessun peso)
+function getCardAvgWeight(card) {
+    const last = getLastWeights(card); // già esclude le pesate a stomaco pieno
+    const valid = last.filter(w => w !== null && w !== undefined);
+    if (valid.length === 0) return null;
+    return valid.reduce((s, v) => s + v, 0) / valid.length;
+}
+
+// Gruppo alimentare di una scheda in base al peso medio
+// (110-250 g: 3 pasti latte; 250-300: 2 pasti latte; 300-400: 2 pasti;
+// oltre 400: 1 pasto; i più leggeri di 110 g restano con il latte)
+function getFeedingGroup(avg) {
+    if (avg === null) return 'noweights';
+    if (avg <= 250) return 'milk3';
+    if (avg <= 300) return 'milk2';
+    if (avg <= 400) return 'meals2';
+    return 'meals1';
+}
+
+// Ordine e etichette dei gruppi della home
+const FEEDING_GROUPS = [
+    { key: 'noweights', label: 'Nessuna pesata', emoji: '❓' },
+    { key: 'milk3', label: '3 pasti latte', emoji: '🍼' },
+    { key: 'milk2', label: '2 pasti latte', emoji: '🍼' },
+    { key: 'meals2', label: '2 pasti', emoji: '🥣' },
+    { key: 'meals1', label: '1 pasto', emoji: '🥣' }
+];
+
+// Renderizza tutte le card, separate in sezioni per fabbisogno alimentare
 function renderCards() {
     computeAlerts();
     
@@ -399,7 +428,37 @@ function renderCards() {
 
     cardsContainer.innerHTML = '';
     
+    // Raggruppa le schede in base al peso medio (ultimo peso noto di ogni ID,
+    // escluse le pesate a stomaco pieno), ricalcolato a ogni aggiornamento
+    const groups = {};
     cards.forEach(card => {
+        const group = getFeedingGroup(getCardAvgWeight(card));
+        if (!groups[group]) groups[group] = [];
+        groups[group].push(card);
+    });
+    
+    FEEDING_GROUPS.forEach(({ key, label, emoji }) => {
+        const groupCards = groups[key];
+        if (!groupCards || groupCards.length === 0) return;
+        
+        const section = document.createElement('section');
+        section.className = 'cards-section';
+        section.innerHTML = `<h2>${emoji} ${label}</h2>`;
+        
+        const grid = document.createElement('div');
+        grid.className = 'cards-grid';
+        
+        groupCards.forEach(card => {
+            grid.appendChild(createCardElement(card));
+        });
+        
+        section.appendChild(grid);
+        cardsContainer.appendChild(section);
+    });
+}
+
+// Crea l'elemento DOM di una singola card
+function createCardElement(card) {
         const cardElement = document.createElement('div');
         cardElement.className = 'card';
         cardElement.dataset.id = card.id;
@@ -469,8 +528,7 @@ function renderCards() {
             openActionModal(card.id);
         });
         
-        cardsContainer.appendChild(cardElement);
-    });
+        return cardElement;
 }
 
 // Apre il modale per aggiungere una nuova card
