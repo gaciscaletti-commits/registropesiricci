@@ -45,6 +45,7 @@ const weightInputsContainer = document.getElementById('weightInputsContainer');
 const quickWeightsGroup = document.getElementById('quickWeightsGroup');
 const quickWeightsInput = document.getElementById('quickWeightsInput');
 const assignmentPreview = document.getElementById('assignmentPreview');
+const stomachFullCheck = document.getElementById('stomachFullCheck');
 const addWeightBtn = document.getElementById('addWeightBtn');
 const cancelWeightBtn = document.getElementById('cancelWeightBtn');
 
@@ -200,7 +201,8 @@ function getCardTrend(card) {
     if (!card.weights || card.weights.length < 2) return null;
     if (card.numbers.length > 1) return null;
     
-    const sorted = [...card.weights].sort((a, b) => new Date(a.date) - new Date(b.date));
+    // Le pesate a stomaco pieno non contano per il trend
+    const sorted = card.weights.filter(w => !w.full).sort((a, b) => new Date(a.date) - new Date(b.date));
     const last = sorted[sorted.length - 1];
     const prev = sorted[sorted.length - 2];
     
@@ -229,7 +231,8 @@ function getCardTrend(card) {
 function getIdTrend(card, idx) {
     if (card.numbers.length <= 1) return null;
     
-    const sorted = [...card.weights].sort((a, b) => new Date(a.date) - new Date(b.date));
+    // Le pesate a stomaco pieno non contano per il trend
+    const sorted = card.weights.filter(w => !w.full).sort((a, b) => new Date(a.date) - new Date(b.date));
     const vals = sorted.map(rec => rec.values[idx]).filter(v => v !== null && v !== undefined);
     
     if (vals.length < 2) return null;
@@ -801,40 +804,37 @@ function openWeightModal(card) {
         </tr>
     `;
     
-    // Ottieni tutte le date uniche
-    const allDates = new Set();
-    card.weights.forEach(w => allDates.add(w.date));
-    
-    const sortedDates = Array.from(allDates).sort((a, b) => new Date(b) - new Date(a));
-    
-    // Costruisci la tabella
+    // Costruisci la tabella: una riga per registrazione.
+    // Stomaco vuoto e pieno lo stesso giorno = due righe distinte
+    // (quella a stomaco pieno evidenziata in arancione).
     weightsTableBody.innerHTML = '';
     
-    if (sortedDates.length === 0) {
+    const sortedRecords = [...card.weights].sort((a, b) => {
+        const d = new Date(b.date) - new Date(a.date);
+        if (d !== 0) return d;
+        // a parità di data, prima la pesata a stomaco vuoto
+        return (a.full ? 1 : 0) - (b.full ? 1 : 0);
+    });
+    
+    if (sortedRecords.length === 0) {
         emptyWeightsMsg.classList.add('visible');
         weightsTable.style.display = 'none';
     } else {
         emptyWeightsMsg.classList.remove('visible');
         weightsTable.style.display = 'table';
         
-        sortedDates.forEach(date => {
+        sortedRecords.forEach(rec => {
             const row = document.createElement('tr');
-            const formattedDate = new Date(date).toLocaleDateString('it-IT');
-            row.innerHTML = `<td>${formattedDate}</td>`;
+            if (rec.full) row.className = 'full-stomach';
+            const formattedDate = new Date(rec.date).toLocaleDateString('it-IT');
+            const fullTag = rec.full ? ' <span class="full-tag">Pieno</span>' : '';
+            row.innerHTML = `<td>${formattedDate}${fullTag}</td>`;
             
-            // Aggiungi i pesi per ogni ID
-            const weightRecord = card.weights.find(w => w.date === date);
-            if (weightRecord) {
-                card.numbers.forEach((num, index) => {
-                    const value = weightRecord.values[index];
-                    const cellValue = value !== null && value !== undefined ? `${value} g` : '-';
-                    row.innerHTML += `<td>${cellValue}</td>`;
-                });
-            } else {
-                card.numbers.forEach(() => {
-                    row.innerHTML += '<td>-</td>';
-                });
-            }
+            card.numbers.forEach((num, index) => {
+                const value = rec.values[index];
+                const cellValue = value !== null && value !== undefined ? `${value} g` : '-';
+                row.innerHTML += `<td>${cellValue}</td>`;
+            });
             
             weightsTableBody.appendChild(row);
         });
@@ -849,9 +849,15 @@ function openWeightModal(card) {
     quickWeightsGroup.style.display = isMultiId ? 'block' : 'none';
     weightInputsContainer.style.display = isMultiId ? 'none' : 'flex';
     
+    // Suggerisce in grigio l'ultimo peso registrato per ciascun ID
+    // (preferibilmente a stomaco vuoto)
     const sortedWeights = [...card.weights].sort((a, b) => new Date(b.date) - new Date(a.date));
     const lastWeightFor = (num) => {
         const numIndex = card.numbers.indexOf(num);
+        for (const rec of sortedWeights.filter(r => !r.full)) {
+            const v = rec.values[numIndex];
+            if (v !== null && v !== undefined) return v;
+        }
         for (const rec of sortedWeights) {
             const v = rec.values[numIndex];
             if (v !== null && v !== undefined) return v;
@@ -884,6 +890,9 @@ function openWeightModal(card) {
     const yyyy = today.getFullYear();
     weightDateInput.value = `${dd}/${mm}/${yyyy}`;
     
+    // Spunta "Stomaco Pieno" sempre deselezionata all'apertura
+    stomachFullCheck.checked = false;
+    
     // Salva il riferimento alla card corrente
     weightModal.dataset.currentCardId = card.id;
     
@@ -899,9 +908,11 @@ function closeWeightModal() {
 
 // --- Assegnazione statistica dei pesi (schede multi-ID) ---
 
-// Ultimi pesi noti di una scheda, nell'ordine dei suoi ID (null = mai pesato)
+// Ultimi pesi noti di una scheda, nell'ordine dei suoi ID (null = mai pesato).
+// Le pesate a stomaco pieno non contano: escluse, così non finiscono né negli
+// alert né tra i riferimenti per l'assegnazione automatica dei pesi.
 function getLastWeights(card) {
-    const sorted = [...card.weights].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const sorted = card.weights.filter(w => !w.full).sort((a, b) => new Date(b.date) - new Date(a.date));
     return card.numbers.map((num, i) => {
         for (const rec of sorted) {
             const v = rec.values[i];
@@ -1057,18 +1068,22 @@ function addWeight() {
         }
     }
     
-    // Controlla se esiste già una registrazione per questa data
-    const existingWeightIndex = card.weights.findIndex(w => w.date === dateKey);
+    // Spunta "Stomaco Pieno": la pesata non sovrascrive (e non è sovrascritta da)
+    // una pesata a stomaco vuoto dello stesso giorno: sono registrazioni separate
+    const fullStomach = stomachFullCheck.checked;
+    const existingWeightIndex = card.weights.findIndex(w => w.date === dateKey && !!w.full === fullStomach);
     
     if (existingWeightIndex !== -1) {
-        // Aggiorna i valori esistenti
+        // Aggiorna i valori esistenti della stessa tipologia (pieno/vuoto)
         card.weights[existingWeightIndex].values = values;
     } else {
         // Aggiungi nuova registrazione
-        card.weights.push({
+        const newRecord = {
             date: dateKey,
             values: values
-        });
+        };
+        if (fullStomach) newRecord.full = true;
+        card.weights.push(newRecord);
     }
     
     saveData();
@@ -1296,11 +1311,17 @@ function calcMilkRequirement(weightGrams) {
     return 70 * Math.pow(kg, 0.75) * 2;
 }
 
-// Ultimo peso registrato (non nullo) per un ID della card
+// Ultimo peso registrato (non nullo) per un ID della card.
+// Preferisce le pesate a stomaco vuoto; usa quelle a stomaco pieno solo se
+// non c'è altro.
 function getLastWeightFor(card, num) {
     const idx = card.numbers.indexOf(num);
     if (idx === -1) return null;
     const sorted = [...card.weights].sort((a, b) => new Date(b.date) - new Date(a.date));
+    for (const rec of sorted.filter(r => !r.full)) {
+        const v = rec.values[idx];
+        if (v !== null && v !== undefined) return v;
+    }
     for (const rec of sorted) {
         const v = rec.values[idx];
         if (v !== null && v !== undefined) return v;

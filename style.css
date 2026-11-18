@@ -523,6 +523,42 @@
     border-color: var(--primary-color);
 }
 
+/* Spunta "Stomaco Pieno" */
+.stomach-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0;
+}
+
+.stomach-check input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #FF9800;
+    cursor: pointer;
+}
+
+.stomach-check label {
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+/* Riga pesata a stomaco pieno (arancione) */
+.weights-table tr.full-stomach td {
+    background-color: #FFE0B2;
+}
+
+.full-tag {
+    background-color: #FF9800;
+    color: white;
+    font-size: 0.7rem;
+    border-radius: 10px;
+    padding: 2px 6px;
+    margin-left: 4px;
+    white-space: nowrap;
+}
+
 /* Inserimento rapido multi-ID */
 .quick-weights-group textarea {
     width: 100%;
