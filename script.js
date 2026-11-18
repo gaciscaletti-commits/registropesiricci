@@ -261,7 +261,8 @@ function escapeHtml(text) {
 // per ogni scheda va in alert al massimo UNO ID: quello più "outlier",
 // cioè quello che, se rimosso, lascerebbe la distribuzione dei pesi più
 // omogenea (quello più lontano dalla media dei pesi degli altri ID).
-// L'alert scatta solo se quello scostamento supera il 20% (in più o in meno).
+// L'alert scatta solo se quello scostamento supera il 20% (in più o in meno)
+// ed è di almeno 20 g in assoluto.
 
 const alertButton = document.getElementById('alertButton');
 const alertBadge = document.getElementById('alertBadge');
@@ -270,6 +271,7 @@ const alertsList = document.getElementById('alertsList');
 const closeAlertsBtn = document.getElementById('closeAlertsBtn');
 
 const ALERT_THRESHOLD = 0.20; // 20%
+const ALERT_MIN_GRAMS = 20;   // oltre il 20%, serve anche uno scostamento assoluto di almeno 20 g
 
 let alerts = [];
 
@@ -299,15 +301,19 @@ function computeAlerts() {
             if (avgOthers === 0) return;
             
             const dev = (w - avgOthers) / avgOthers;
-            entries.push({ num, weight: w, avgOthers: Math.round(avgOthers), dev: dev, score: Math.abs(dev) });
+            const diffGrams = Math.abs(w - avgOthers);
+            entries.push({ num, weight: w, avgOthers: Math.round(avgOthers), dev: dev, score: Math.abs(dev), diffGrams: diffGrams });
         });
         
         if (entries.length === 0) return;
         
-        // Solo l'ID più outlier della scheda può andare in alert
+        // Solo l'ID più outlier della scheda può andare in alert.
+        // L'alert scatta solo se supera il 20% E lo scostamento assoluto
+        // è di almeno 20 g (con pesi bassi, poche decine di grammi oltre
+        // la media non sono un'anomalia reale).
         const worst = entries.reduce((a, b) => (b.score > a.score ? b : a));
         
-        if (worst.score > ALERT_THRESHOLD) {
+        if (worst.score > ALERT_THRESHOLD && worst.diffGrams >= ALERT_MIN_GRAMS) {
             alerts.push({
                 cardId: card.id,
                 number: worst.num,
@@ -330,7 +336,7 @@ function computeAlerts() {
 // Apre l'elenco degli alert
 function openAlertsModal() {
     if (alerts.length === 0) {
-        alertsList.innerHTML = '<p class="empty-archive">Nessun alert: nessun ID si scosta più del 20% dalla media degli altri.</p>';
+        alertsList.innerHTML = '<p class="empty-archive">Nessun alert: nessun ID si scosta più del 20% e di almeno 20 g dalla media degli altri.</p>';
     } else {
         alertsList.innerHTML = alerts.map(a => {
             const card = cards.find(c => c.id === a.cardId);
