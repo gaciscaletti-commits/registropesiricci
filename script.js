@@ -259,7 +259,8 @@ function escapeHtml(text) {
 // --- Alert anomali peso ---
 // Ricalcolati a ogni aggiornamento delle schede: nelle schede multi-ID,
 // un ID è in alert se il suo ultimo peso si scosta più del 20% (in più o
-// in meno) dalla media degli ultimi pesi degli altri ID della stessa scheda.
+// in meno) dalla media dei pesi di TUTTI gli ID della scheda. Così, in un
+// gruppo tipo 100/105/150, va in alert solo il 150 (il vero outlier).
 
 const alertButton = document.getElementById('alertButton');
 const alertBadge = document.getElementById('alertBadge');
@@ -281,18 +282,18 @@ function computeAlerts() {
         // Ultimi pesi noti di ogni ID (null = mai pesato)
         const lastWeights = getLastWeights(card);
         
+        // Media degli ultimi pesi di TUTTI gli ID pesati della scheda
+        const known = lastWeights.filter(v => v !== null && v !== undefined);
+        if (known.length === 0) return;
+        
+        const avg = known.reduce((s, v) => s + v, 0) / known.length;
+        if (avg === 0) return;
+        
         card.numbers.forEach((num, i) => {
             const w = lastWeights[i];
             if (w === null || w === undefined) return;
             
-            // Media degli ultimi pesi degli ALTRI ID
-            const others = lastWeights.filter((v, j) => j !== i && v !== null && v !== undefined);
-            if (others.length === 0) return;
-            
-            const avg = others.reduce((s, v) => s + v, 0) / others.length;
-            if (avg === 0) return;
-            
-            const dev = (w - avg) / avg; // scostamento relativo
+            const dev = (w - avg) / avg; // scostamento relativo dalla media
             
             if (Math.abs(dev) > ALERT_THRESHOLD) {
                 alerts.push({
@@ -334,7 +335,7 @@ function openAlertsModal() {
                         <span class="card-trend ${cls}">${a.dev > 0 ? '📈' : '📉'} ${pct}</span>
                     </div>
                     <div class="alert-item-info">Scheda: ${cardLabel}</div>
-                    <div class="alert-item-info">Peso: ${a.weight} g · Media altri ID: ${a.avgOthers} g</div>
+                    <div class="alert-item-info">Peso: ${a.weight} g · Media scheda: ${a.avgOthers} g</div>
                 </div>
             `;
         }).join('');
