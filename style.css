@@ -852,3 +852,77 @@ button,
         color: white;
     }
 }
+
+
+/* --- Nome scheda --- */
+
+/* Riga in alto nella card: nome a sinistra, pulsante modifica a destra */
+.card-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 32px;
+    margin-bottom: 2px;
+}
+
+/* Il nome compare sopra gli ID, che restano ben leggibili */
+.card-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.card-name:empty::before {
+    content: 'Nome\2026';
+    color: var(--text-light);
+    opacity: 0.6;
+    font-weight: 400;
+}
+
+/* Pulsante modifica nome (in alto a destra della card) */
+.card-name-btn {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-light);
+    font-size: 0.95rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.card-name-btn:active {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+/* --- Trend per-ID nelle schede multiple --- */
+
+/* Ogni ID con il proprio trend accanto, nella stessa casella */
+.id-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.id-chip .card-trend {
+    font-size: 0.95rem;
+    font-weight: normal;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .card-name-btn:hover {
+        background: rgba(0, 0, 0, 0.06);
+    }
+}

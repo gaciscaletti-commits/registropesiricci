@@ -176,6 +176,11 @@ function mergeCards(card1Id, card2Id) {
         weights: mergedWeights
     };
     
+    // Conserva il nome della prima scheda, se presente
+    if (card1.name) {
+        mergedCard.name = card1.name;
+    }
+    
     // Rimuove le due card originali e aggiunge quella unita
     cards.splice(card1Index, 1);
     if (card2Index > card1Index) {
@@ -219,6 +224,38 @@ function getCardTrend(card) {
     };
 }
 
+// Calcola il trend del peso di un singolo ID (schede multi-ID):
+// confronta gli ultimi due pesi non nulli di quell'ID (in ordine di data)
+function getIdTrend(card, idx) {
+    if (card.numbers.length <= 1) return null;
+    
+    const sorted = [...card.weights].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const vals = sorted.map(rec => rec.values[idx]).filter(v => v !== null && v !== undefined);
+    
+    if (vals.length < 2) return null;
+    
+    const last = vals[vals.length - 1];
+    const prev = vals[vals.length - 2];
+    
+    if (prev === 0) return null;
+    
+    const pct = ((last - prev) / prev) * 100;
+    
+    return {
+        pct,
+        emoji: pct > 0 ? '📈' : (pct < 0 ? '📉' : '➖'),
+        cls: pct > 0 ? 'up' : (pct < 0 ? 'down' : 'flat'),
+        formatted: `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`
+    };
+}
+
+// Escapes HTML per i nomi inseriti dall'utente
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Renderizza tutte le card
 function renderCards() {
     if (cards.length === 0) {
@@ -237,6 +274,7 @@ function renderCards() {
         // Formatta i numeri (se più di uno, separati da virgola)
         const numbersText = card.numbers.join(', ');
         const weightsCount = card.weights.length;
+        const isMultiId = card.numbers.length > 1;
         
         // Trend del peso (solo schede con un ID singolo)
         const trend = getCardTrend(card);
@@ -244,8 +282,30 @@ function renderCards() {
             ? `<span class="card-trend ${trend.cls}">${trend.emoji} ${trend.formatted}</span>`
             : (weightsCount > 0 && card.numbers.length === 1 ? '<span class="card-trend flat">📊 —</span>' : '');
         
+        // Riga degli ID: nelle schede multiple, ogni ID mostra accanto il proprio
+        // trend (📈/📉 + percentuale) nella stessa casella, senza complicare la tabella
+        let numbersHtml = numbersText;
+        if (isMultiId) {
+            numbersHtml = card.numbers.map((num, i) => {
+                const idTrend = getIdTrend(card, i);
+                let idTrendHtml = '';
+                if (idTrend) {
+                    idTrendHtml = `<span class="card-trend ${idTrend.cls}">${idTrend.emoji} ${idTrend.formatted}</span>`;
+                } else if (card.weights.some(w => w.values[i] !== null && w.values[i] !== undefined)) {
+                    idTrendHtml = '<span class="card-trend flat">📊 —</span>';
+                }
+                return `<span class="id-chip">${num}${idTrendHtml}</span>`;
+            }).join(' ');
+        }
+        
+        const cardName = card.name ? escapeHtml(card.name) : '';
+        
         cardElement.innerHTML = `
-            <div class="card-numbers">${numbersText}</div>
+            <div class="card-top-row">
+                <div class="card-name">${cardName}</div>
+                <button class="card-name-btn" title="${cardName ? 'Modifica nome' : 'Dai un nome alla scheda'}">✏️</button>
+            </div>
+            <div class="card-numbers">${numbersHtml}</div>
             <div class="card-title">Scheda Animale</div>
             <div class="card-info">
                 <span class="card-count">${weightsCount} registrazioni</span>
@@ -600,7 +660,7 @@ function renderArchive(filter = 'all') {
 function openWeightModal(card) {
     // Aggiorna il titolo
     const numbersText = card.numbers.join(', ');
-    currentCardTitle.textContent = `Scheda #${numbersText}`;
+    currentCardTitle.textContent = `${card.name ? card.name + ' · ' : ''}Scheda #${numbersText}`;
     cardNumbersDisplay.textContent = `ID: ${numbersText}`;
     
     // Crea le intestazioni della tabella
@@ -1000,7 +1060,9 @@ archiveModal.addEventListener('click', (e) => {
 // Ordina i modali dal più alto: menu azioni sta sopra la scheda pesi
 addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        if (milkModal.classList.contains('active')) {
+        if (nameModal.classList.contains('active')) {
+            closeNameModal();
+        } else if (milkModal.classList.contains('active')) {
             closeMilkModal();
         } else if (actionModal.classList.contains('active')) {
             closeActionModal();
@@ -1031,6 +1093,17 @@ cardsContainer.addEventListener('click', (e) => {
     // Se il menu azioni è già aperto (es. dopo un lungo tap), ignora il click successivo
     if (actionModal.classList.contains('active')) return;
     
+    // Click sul pulsante nome: apri il modale del nome, non la scheda
+    const nameBtn = e.target.closest('.card-name-btn');
+    if (nameBtn) {
+        const cardEl = nameBtn.closest('.card');
+        if (cardEl) {
+            e.stopPropagation();
+            openNameModal(cardEl.dataset.id);
+            return;
+        }
+    }
+    
     const cardElement = e.target.closest('.card');
     if (cardElement) {
         const cardId = cardElement.dataset.id;
@@ -1047,6 +1120,7 @@ cardsContainer.addEventListener('click', (e) => {
 
 // Gestione lungo tap per mobile
 cardsContainer.addEventListener('touchstart', (e) => {
+    if (e.target.closest('.card-name-btn')) return;
     const cardElement = e.target.closest('.card');
     if (cardElement) {
         const cardId = cardElement.dataset.id;
@@ -1206,5 +1280,73 @@ closeMilkBtn.addEventListener('click', closeMilkModal);
 milkModal.addEventListener('click', (e) => {
     if (e.target === milkModal) {
         closeMilkModal();
+    }
+});
+
+// --- Nome scheda ---
+
+const nameModal = document.getElementById('nameModal');
+const cardNameInput = document.getElementById('cardNameInput');
+const confirmNameBtn = document.getElementById('confirmNameBtn');
+const cancelNameBtn = document.getElementById('cancelNameBtn');
+
+let currentNameCardId = null;
+
+// Apre il modale per assegnare/modificare il nome di una scheda
+function openNameModal(cardId) {
+    const card = cards.find(c => c.id === cardId);
+    if (!card) return;
+    
+    currentNameCardId = cardId;
+    cardNameInput.value = card.name || '';
+    nameModal.classList.add('active');
+    setTimeout(() => cardNameInput.focus(), 50);
+}
+
+// Chiude il modale nome
+function closeNameModal() {
+    nameModal.classList.remove('active');
+    currentNameCardId = null;
+}
+
+// Salva il nome (vuoto = nessun nome)
+function confirmCardName() {
+    const card = cards.find(c => c.id === currentNameCardId);
+    if (!card) {
+        closeNameModal();
+        return;
+    }
+    
+    const name = cardNameInput.value.trim();
+    if (name) {
+        card.name = name;
+    } else {
+        delete card.name;
+    }
+    
+    saveData();
+    renderCards();
+    
+    // Aggiorna il titolo se il modale pesi è aperto sulla stessa scheda
+    if (weightModal.classList.contains('active') && weightModal.dataset.currentCardId === card.id) {
+        const numbersText = card.numbers.join(', ');
+        currentCardTitle.textContent = `${card.name ? card.name + ' · ' : ''}Scheda #${numbersText}`;
+    }
+    
+    closeNameModal();
+}
+
+confirmNameBtn.addEventListener('click', confirmCardName);
+cancelNameBtn.addEventListener('click', closeNameModal);
+
+cardNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        confirmCardName();
+    }
+});
+
+nameModal.addEventListener('click', (e) => {
+    if (e.target === nameModal) {
+        closeNameModal();
     }
 });
