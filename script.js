@@ -398,10 +398,11 @@ function getCardAvgWeight(card) {
 }
 
 // Gruppo alimentare di una scheda in base al peso medio
-// (110-250 g: 3 pasti latte; 250-300: 2 pasti latte; 300-400: 2 pasti;
-// oltre 400: 1 pasto; i più leggeri di 110 g restano con il latte)
+// (< 110 g: Baby; 110-250 g: 3 pasti latte; 250-300: 2 pasti latte;
+// 300-400: 2 pasti; oltre 400: 1 pasto)
 function getFeedingGroup(avg) {
     if (avg === null) return 'noweights';
+    if (avg < 110) return 'baby';
     if (avg <= 250) return 'milk3';
     if (avg <= 300) return 'milk2';
     if (avg <= 400) return 'meals2';
@@ -411,6 +412,7 @@ function getFeedingGroup(avg) {
 // Ordine e etichette dei gruppi della home
 const FEEDING_GROUPS = [
     { key: 'noweights', label: 'Nessuna pesata', emoji: '❓' },
+    { key: 'baby', label: 'Babyyy', emoji: '🦔' },
     { key: 'milk3', label: '3 pasti latte', emoji: '🍼' },
     { key: 'milk2', label: '2 pasti latte', emoji: '🍼' },
     { key: 'meals2', label: '2 pasti', emoji: '🥣' },

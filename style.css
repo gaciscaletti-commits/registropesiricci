@@ -6,13 +6,13 @@
 }
 
 :root {
-    --primary-color: #4CAF50;
-    --secondary-color: #2196F3;
-    --background-color: #f5f5f5;
+    --primary-color: #29B6F6;
+    --secondary-color: #0277BD;
+    --background-color: #E3F2FD;
     --card-color: #ffffff;
     --text-color: #333333;
     --text-light: #666666;
-    --border-color: #e0e0e0;
+    --border-color: #CFE3F6;
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     --border-radius: 12px;
     --group-color: #FF9800;
@@ -115,13 +115,13 @@
 
 .card.drag-over {
     border-color: var(--primary-color);
-    background-color: #f0fff0;
+    background-color: #E1F5FE;
 }
 
 .card.selected {
     border-color: var(--secondary-color);
     border-width: 2px;
-    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+    box-shadow: 0 0 0 2px rgba(2, 119, 189, 0.25);
 }
 
 .card-numbers {
@@ -169,8 +169,8 @@
 }
 
 .card-trend.up {
-    color: #2e7d32;
-    background-color: rgba(76, 175, 80, 0.15);
+    color: #0277BD;
+    background-color: rgba(2, 136, 209, 0.12);
 }
 
 .card-trend.down {
@@ -603,7 +603,7 @@
 .assignment-preview {
     margin-top: 10px;
     padding: 10px;
-    background-color: rgba(33, 150, 243, 0.07);
+    background-color: rgba(129, 212, 250, 0.20);
     border-radius: 8px;
     font-size: 0.95rem;
 }
@@ -643,7 +643,7 @@
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #1976D2;
+    background: #01579B;
 }
 
 /* Responsive per mobile */
@@ -729,21 +729,21 @@
     }
 
     .add-button:hover {
-        background-color: #388E3C;
+        background-color: #0288D1;
         transform: scale(1.05);
     }
 
     .remove-button:hover {
-        background-color: #d32f2f;
+        background-color: #546E7A;
         transform: scale(1.05);
     }
 
     .btn-cancel:hover {
-        background-color: #e0e0e0;
+        background-color: #D3E7F7;
     }
 
     .btn-confirm:hover {
-        background-color: #388E3C;
+        background-color: #0288D1;
     }
 
     #deceasedBtn:hover {
@@ -755,7 +755,7 @@
     }
 
     #movedBtn:hover {
-        background-color: #1565c0;
+        background-color: #01579B;
     }
 
     .move-option:hover {
@@ -904,7 +904,7 @@ button,
 
 @media (hover: hover) and (pointer: fine) {
     .milk-button:hover {
-        background-color: #1565c0;
+        background-color: #01579B;
         transform: scale(1.05);
     }
 
@@ -970,7 +970,7 @@ button,
 
 @media (hover: hover) and (pointer: fine) {
     .name-button:hover {
-        background-color: #1565c0;
+        background-color: #01579B;
         transform: scale(1.05);
     }
 }
