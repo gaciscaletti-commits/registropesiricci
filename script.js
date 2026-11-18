@@ -258,9 +258,10 @@ function escapeHtml(text) {
 
 // --- Alert anomali peso ---
 // Ricalcolati a ogni aggiornamento delle schede: nelle schede multi-ID,
-// un ID è in alert se il suo ultimo peso si scosta più del 20% (in più o
-// in meno) dalla media dei pesi di TUTTI gli ID della scheda. Così, in un
-// gruppo tipo 100/105/150, va in alert solo il 150 (il vero outlier).
+// per ogni scheda va in alert al massimo UNO ID: quello più "outlier",
+// cioè quello che, se rimosso, lascerebbe la distribuzione dei pesi più
+// omogenea (quello più lontano dalla media dei pesi degli altri ID).
+// L'alert scatta solo se quello scostamento supera il 20% (in più o in meno).
 
 const alertButton = document.getElementById('alertButton');
 const alertBadge = document.getElementById('alertBadge');
@@ -282,29 +283,39 @@ function computeAlerts() {
         // Ultimi pesi noti di ogni ID (null = mai pesato)
         const lastWeights = getLastWeights(card);
         
-        // Media degli ultimi pesi di TUTTI gli ID pesati della scheda
-        const known = lastWeights.filter(v => v !== null && v !== undefined);
-        if (known.length === 0) return;
-        
-        const avg = known.reduce((s, v) => s + v, 0) / known.length;
-        if (avg === 0) return;
+        // Per ogni ID pesato: scostamento dalla media dei pesi degli ALTRI ID.
+        // Più lo scostamento è grande, più la distribuzione diventerebbe
+        // omogenea rimuovendo quell'ID.
+        const entries = [];
         
         card.numbers.forEach((num, i) => {
             const w = lastWeights[i];
             if (w === null || w === undefined) return;
             
-            const dev = (w - avg) / avg; // scostamento relativo dalla media
+            const others = lastWeights.filter((v, j) => j !== i && v !== null && v !== undefined);
+            if (others.length === 0) return;
             
-            if (Math.abs(dev) > ALERT_THRESHOLD) {
-                alerts.push({
-                    cardId: card.id,
-                    number: num,
-                    weight: w,
-                    avgOthers: Math.round(avg),
-                    dev: dev
-                });
-            }
+            const avgOthers = others.reduce((s, v) => s + v, 0) / others.length;
+            if (avgOthers === 0) return;
+            
+            const dev = (w - avgOthers) / avgOthers;
+            entries.push({ num, weight: w, avgOthers: Math.round(avgOthers), dev: dev, score: Math.abs(dev) });
         });
+        
+        if (entries.length === 0) return;
+        
+        // Solo l'ID più outlier della scheda può andare in alert
+        const worst = entries.reduce((a, b) => (b.score > a.score ? b : a));
+        
+        if (worst.score > ALERT_THRESHOLD) {
+            alerts.push({
+                cardId: card.id,
+                number: worst.num,
+                weight: worst.weight,
+                avgOthers: worst.avgOthers,
+                dev: worst.dev
+            });
+        }
     });
     
     // Badge di notifica sul pulsante
@@ -335,7 +346,7 @@ function openAlertsModal() {
                         <span class="card-trend ${cls}">${a.dev > 0 ? '📈' : '📉'} ${pct}</span>
                     </div>
                     <div class="alert-item-info">Scheda: ${cardLabel}</div>
-                    <div class="alert-item-info">Peso: ${a.weight} g · Media scheda: ${a.avgOthers} g</div>
+                    <div class="alert-item-info">Peso: ${a.weight} g · Media altri ID: ${a.avgOthers} g</div>
                 </div>
             `;
         }).join('');
