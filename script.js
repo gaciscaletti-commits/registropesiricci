@@ -282,30 +282,14 @@ function renderCards() {
             ? `<span class="card-trend ${trend.cls}">${trend.emoji} ${trend.formatted}</span>`
             : (weightsCount > 0 && card.numbers.length === 1 ? '<span class="card-trend flat">📊 —</span>' : '');
         
-        // Riga degli ID: nelle schede multiple, ogni ID mostra accanto il proprio
-        // trend (📈/📉 + percentuale) nella stessa casella, senza complicare la tabella
-        let numbersHtml = numbersText;
-        if (isMultiId) {
-            numbersHtml = card.numbers.map((num, i) => {
-                const idTrend = getIdTrend(card, i);
-                let idTrendHtml = '';
-                if (idTrend) {
-                    idTrendHtml = `<span class="card-trend ${idTrend.cls}">${idTrend.emoji} ${idTrend.formatted}</span>`;
-                } else if (card.weights.some(w => w.values[i] !== null && w.values[i] !== undefined)) {
-                    idTrendHtml = '<span class="card-trend flat">📊 —</span>';
-                }
-                return `<span class="id-chip">${num}${idTrendHtml}</span>`;
-            }).join(' ');
-        }
-        
-        const cardName = card.name ? escapeHtml(card.name) : '';
+        // Nome della scheda: mostrato sopra gli ID solo se è stato assegnato
+        const cardNameHtml = card.name
+            ? `<div class="card-name">${escapeHtml(card.name)}</div>`
+            : '';
         
         cardElement.innerHTML = `
-            <div class="card-top-row">
-                <div class="card-name">${cardName}</div>
-                <button class="card-name-btn" title="${cardName ? 'Modifica nome' : 'Dai un nome alla scheda'}">✏️</button>
-            </div>
-            <div class="card-numbers">${numbersHtml}</div>
+            ${cardNameHtml}
+            <div class="card-numbers">${numbersText}</div>
             <div class="card-title">Scheda Animale</div>
             <div class="card-info">
                 <span class="card-count">${weightsCount} registrazioni</span>
@@ -663,11 +647,26 @@ function openWeightModal(card) {
     currentCardTitle.textContent = `${card.name ? card.name + ' · ' : ''}Scheda #${numbersText}`;
     cardNumbersDisplay.textContent = `ID: ${numbersText}`;
     
-    // Crea le intestazioni della tabella
+    // Crea le intestazioni della tabella.
+    // Schede multiple: accanto a ogni ID, nella stessa casella, il trend del
+    // peso di quel riccio (📈/📉 + percentuale tra gli ultimi due pesi non nulli)
+    const headIdHtml = card.numbers.map((num, i) => {
+        let trendHtml = '';
+        if (card.numbers.length > 1) {
+            const idTrend = getIdTrend(card, i);
+            if (idTrend) {
+                trendHtml = `<span class="card-trend ${idTrend.cls}">${idTrend.emoji} ${idTrend.formatted}</span>`;
+            } else if (card.weights.some(w => w.values[i] !== null && w.values[i] !== undefined)) {
+                trendHtml = '<span class="card-trend flat">📊 —</span>';
+            }
+        }
+        return `<th>ID ${num}${trendHtml}</th>`;
+    }).join('');
+    
     weightsTableHead.innerHTML = `
         <tr>
             <th>Data</th>
-            ${card.numbers.map(num => `<th>ID ${num}</th>`).join('')}
+            ${headIdHtml}
         </tr>
     `;
     
@@ -1093,17 +1092,6 @@ cardsContainer.addEventListener('click', (e) => {
     // Se il menu azioni è già aperto (es. dopo un lungo tap), ignora il click successivo
     if (actionModal.classList.contains('active')) return;
     
-    // Click sul pulsante nome: apri il modale del nome, non la scheda
-    const nameBtn = e.target.closest('.card-name-btn');
-    if (nameBtn) {
-        const cardEl = nameBtn.closest('.card');
-        if (cardEl) {
-            e.stopPropagation();
-            openNameModal(cardEl.dataset.id);
-            return;
-        }
-    }
-    
     const cardElement = e.target.closest('.card');
     if (cardElement) {
         const cardId = cardElement.dataset.id;
@@ -1120,7 +1108,6 @@ cardsContainer.addEventListener('click', (e) => {
 
 // Gestione lungo tap per mobile
 cardsContainer.addEventListener('touchstart', (e) => {
-    if (e.target.closest('.card-name-btn')) return;
     const cardElement = e.target.closest('.card');
     if (cardElement) {
         const cardId = cardElement.dataset.id;
@@ -1335,6 +1322,15 @@ function confirmCardName() {
     
     closeNameModal();
 }
+
+// Pulsante nome dentro la scheda (modale pesi)
+const cardNameBtn = document.getElementById('cardNameBtn');
+cardNameBtn.addEventListener('click', () => {
+    const cardId = weightModal.dataset.currentCardId;
+    if (cardId) {
+        openNameModal(cardId);
+    }
+});
 
 confirmNameBtn.addEventListener('click', confirmCardName);
 cancelNameBtn.addEventListener('click', closeNameModal);
