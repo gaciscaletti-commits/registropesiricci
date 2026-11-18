@@ -256,8 +256,121 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// --- Alert anomali peso ---
+// Ricalcolati a ogni aggiornamento delle schede: nelle schede multi-ID,
+// un ID è in alert se il suo ultimo peso si scosta più del 20% (in più o
+// in meno) dalla media degli ultimi pesi degli altri ID della stessa scheda.
+
+const alertButton = document.getElementById('alertButton');
+const alertBadge = document.getElementById('alertBadge');
+const alertsModal = document.getElementById('alertsModal');
+const alertsList = document.getElementById('alertsList');
+const closeAlertsBtn = document.getElementById('closeAlertsBtn');
+
+const ALERT_THRESHOLD = 0.20; // 20%
+
+let alerts = [];
+
+function computeAlerts() {
+    alerts = [];
+    
+    cards.forEach(card => {
+        // Solo schede con più di un ID
+        if (!card.numbers || card.numbers.length <= 1) return;
+        
+        // Ultimi pesi noti di ogni ID (null = mai pesato)
+        const lastWeights = getLastWeights(card);
+        
+        card.numbers.forEach((num, i) => {
+            const w = lastWeights[i];
+            if (w === null || w === undefined) return;
+            
+            // Media degli ultimi pesi degli ALTRI ID
+            const others = lastWeights.filter((v, j) => j !== i && v !== null && v !== undefined);
+            if (others.length === 0) return;
+            
+            const avg = others.reduce((s, v) => s + v, 0) / others.length;
+            if (avg === 0) return;
+            
+            const dev = (w - avg) / avg; // scostamento relativo
+            
+            if (Math.abs(dev) > ALERT_THRESHOLD) {
+                alerts.push({
+                    cardId: card.id,
+                    number: num,
+                    weight: w,
+                    avgOthers: Math.round(avg),
+                    dev: dev
+                });
+            }
+        });
+    });
+    
+    // Badge di notifica sul pulsante
+    if (alerts.length > 0) {
+        alertBadge.textContent = alerts.length;
+        alertBadge.style.display = 'flex';
+    } else {
+        alertBadge.style.display = 'none';
+    }
+}
+
+// Apre l'elenco degli alert
+function openAlertsModal() {
+    if (alerts.length === 0) {
+        alertsList.innerHTML = '<p class="empty-archive">Nessun alert: nessun ID si scosta più del 20% dalla media degli altri.</p>';
+    } else {
+        alertsList.innerHTML = alerts.map(a => {
+            const card = cards.find(c => c.id === a.cardId);
+            const cardLabel = card
+                ? (card.name ? escapeHtml(card.name) + ' (' + card.numbers.join(', ') + ')' : card.numbers.join(', '))
+                : '';
+            const pct = (a.dev > 0 ? '+' : '') + (a.dev * 100).toFixed(1) + '%';
+            const cls = a.dev > 0 ? 'up' : 'down';
+            return `
+                <div class="alert-item" data-card-id="${a.cardId}">
+                    <div class="alert-item-header">
+                        <span class="alert-item-id">ID ${a.number}</span>
+                        <span class="card-trend ${cls}">${a.dev > 0 ? '📈' : '📉'} ${pct}</span>
+                    </div>
+                    <div class="alert-item-info">Scheda: ${cardLabel}</div>
+                    <div class="alert-item-info">Peso: ${a.weight} g · Media altri ID: ${a.avgOthers} g</div>
+                </div>
+            `;
+        }).join('');
+        
+        // Click su un alert: apri la scheda corrispondente
+        alertsList.querySelectorAll('.alert-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const card = cards.find(c => c.id === item.dataset.cardId);
+                if (card) {
+                    closeAlertsModal();
+                    openWeightModal(card);
+                }
+            });
+        });
+    }
+    
+    alertsModal.classList.add('active');
+}
+
+function closeAlertsModal() {
+    alertsModal.classList.remove('active');
+}
+
+alertButton.addEventListener('click', openAlertsModal);
+closeAlertsBtn.addEventListener('click', closeAlertsModal);
+
+alertsModal.addEventListener('click', (e) => {
+    if (e.target === alertsModal) {
+        closeAlertsModal();
+    }
+});
+
 // Renderizza tutte le card
 function renderCards() {
+    computeAlerts();
+    
     if (cards.length === 0) {
         cardsContainer.innerHTML = '<p class="empty-message">Nessuna scheda creata. Premi + per aggiungerne una.</p>';
         return;
@@ -960,8 +1073,8 @@ removeCardButton.addEventListener('click', () => {
 archiveButton.addEventListener('click', openArchiveModal);
 confirmCardBtn.addEventListener('click', () => {
     const number = parseInt(cardNumberInput.value);
-    if (isNaN(number) || number < 1000 || number > 9999) {
-        alert('Per favore, inserisci un numero valido a 4 cifre');
+    if (isNaN(number) || number < 1 || number > 9999) {
+        alert('Per favore, inserisci un numero valido (max 4 cifre)');
         return;
     }
     
@@ -1059,7 +1172,9 @@ archiveModal.addEventListener('click', (e) => {
 // Ordina i modali dal più alto: menu azioni sta sopra la scheda pesi
 addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        if (nameModal.classList.contains('active')) {
+        if (alertsModal.classList.contains('active')) {
+            closeAlertsModal();
+        } else if (nameModal.classList.contains('active')) {
             closeNameModal();
         } else if (milkModal.classList.contains('active')) {
             closeMilkModal();
