@@ -1579,7 +1579,10 @@ nameModal.addEventListener('click', (e) => {
 //    media < 250 g -> max 4 | 250-400 g -> max 3 | > 400 g -> max 2;
 // 3) minor numero di spostamenti possibile, poi minimizzare gli scarti;
 // 4) si può unire una scheda con un singolo ID a un'altra (1 spostamento);
-// 5) una scheda svuotata viene eliminata alla fine.
+// 5) una scheda svuotata viene eliminata alla fine;
+// 6) se servono più gruppi omogenei di quante schede esistono, le schede
+//    vengono DIVISE: vengono create le schede aggiuntive necessarie, ma
+//    contengono solo ID già esistenti spostati (nessun nuovo ID inventato).
 
 const balanceButton = document.getElementById('balanceButton');
 const balanceModal = document.getElementById('balanceModal');
@@ -1603,15 +1606,17 @@ function capacityLimit(avgWeight) {
 }
 
 // Calcola il piano di pareggiamento.
-// Restituisce: array di spostamenti [{num, weight, fromId, toId}],
+// Restituisce: array di spostamenti [{num, weight, fromId, toId, newSlot}],
 // [] se le schede sono già bilanciate, null se nessuna soluzione trovata
 // (in questo caso balanceFailInfo contiene i dettagli del perché).
 // Algoritmo in 3 fasi:
 //   1) ricerca esatta fino a BALANCE_EXACT_DEPTH spostamenti: trova la
 //      soluzione con il minor numero di mosse quando basta poco;
 //   2) partizione ottima dei pesi ordinati in gruppi omogenei (DP): se i
-//      gruppi staranno tutte nelle schede esistenti, costruisce il piano
-//      assegnando ogni gruppo alla scheda che sposta meno ID;
+//      gruppi sono più delle schede esistenti, aggiunge schede "virtuali"
+//      che verranno create dividendo quelle esistenti (nessun nuovo ID);
+//      costruisce il piano assegnando ogni gruppo alla scheda che sposta
+//      meno ID;
 //   3) local search di scorta per partizioni non contigue.
 let balanceFailInfo = null;
 
@@ -1654,10 +1659,9 @@ function computeBalancing() {
     balanceFailInfo = null;
     const nSlots = cards.length;
     if (nSlots === 0) return [];
-    
-    // ID con peso noto (escluse pesate a stomaco pieno): spostabili.
-    // ID mai pesati: restano fissi, ma contano nel numero della scheda.
+    let nTot = nSlots; // slot totali: cresce con eventuali schede di divisione
     const fixedCount = new Array(nSlots).fill(0);
+    // ID mai pesati: restano fissi, ma contano nel numero della scheda.
     const movable = [];
     cards.forEach((card, slotIdx) => {
         const last = getLastWeights(card);
@@ -1678,7 +1682,7 @@ function computeBalancing() {
     // Valuta un'assegnazione: violazioni (capacità + ID oltre il 20%)
     // e scarto complessivo (somma dei quadrati degli scarti)
     function evaluate(assign) {
-        const members = Array.from({ length: nSlots }, () => []);
+        const members = Array.from({ length: fixedCount.length }, () => []);
         for (let i = 0; i < n; i++) members[assign[i]].push(i);
         
         let violations = 0;
@@ -1722,7 +1726,9 @@ function computeBalancing() {
                     num: movable[i].num,
                     weight: movable[i].weight,
                     fromId: cards[home[i]].id,
-                    toId: cards[assign[i]].id
+                    toId: cards[assign[i]] ? cards[assign[i]].id : null,
+                    // slot virtuale = nuova scheda creata dividendo quelle esistenti
+                    newSlot: assign[i] >= nSlots ? assign[i] : null
                 });
             }
         }
@@ -1739,7 +1745,7 @@ function computeBalancing() {
         for (const st of level) {
             for (let i = 0; i < n; i++) {
                 if (st[i] !== home[i]) continue;
-                for (let s = 0; s < nSlots; s++) {
+                for (let s = 0; s < nTot; s++) {
                     if (s === home[i]) continue;
                     const ns = st.slice();
                     ns[i] = s;
@@ -1771,10 +1777,12 @@ function computeBalancing() {
     const { minGroups, choice } = balanceDpPartition(sorted.map(x => x.w));
     
     if (minGroups < 1e9) {
-        if (minGroups > nSlots) {
-            // Servono più gruppi di quante schede esistono: davvero impossibile
-            balanceFailInfo = { minGroups, nSlots };
-            return null;
+        if (minGroups > nTot) {
+            // Servono più gruppi omogenei di quante schede esistono:
+            // estende gli slot con schede virtuali (divisione delle schede).
+            // Le nuove schede conterranno solo ID già esistenti spostati.
+            while (fixedCount.length < minGroups) fixedCount.push(0);
+            nTot = fixedCount.length;
         }
         
         // Ricostruisci i gruppi della partizione
@@ -1785,13 +1793,15 @@ function computeBalancing() {
             groups.unshift(sorted.slice(gStart, pos).map(x => x.i));
             pos = gStart;
         }
-        while (groups.length < nSlots) groups.push([]);
+        while (groups.length < nTot) groups.push([]);
         
         const groupAvg = g => g.length ? g.reduce((s, i) => s + movable[i].weight, 0) / g.length : 0;
         
-        // Assegna i gruppi alle schede cercando di muovere il meno possibile
+        // Assegna i gruppi alle schede cercando di muovere il meno possibile.
+        // Gli slot reali (indici < nSlots) sono preferiti perché uno spostamento
+        // verso uno slot virtuale crea comunque una nuova scheda.
         function tryAssign(order) {
-            const freeSlots = [...Array(nSlots).keys()];
+            const freeSlots = [...Array(nTot).keys()];
             const todo = order.slice();
             const assign = new Array(n).fill(-1);
             
@@ -1853,9 +1863,9 @@ function computeBalancing() {
         let improved = false;
         
         // Cerca una mossa singola che migliori (violazioni prima, poi scarti)
-        for (let tries = 0, i = randInt(n); tries < n * nSlots && !improved; tries++) {
+        for (let tries = 0, i = randInt(n); tries < n * nTot && !improved; tries++) {
             i = (i + 1) % n;
-            const s = randInt(nSlots);
+            const s = randInt(nTot);
             if (s === cur[i]) continue;
             const old = cur[i];
             cur[i] = s;
@@ -1876,13 +1886,13 @@ function computeBalancing() {
         if (!improved) {
             // Bloccato: riparte dal migliore con una perturbazione
             cur = best.st.slice();
-            for (let k = 0; k < 2; k++) cur[randInt(n)] = randInt(nSlots);
+            for (let k = 0; k < 2; k++) cur[randInt(n)] = randInt(nTot);
             curEv = evaluate(cur);
         }
     }
     
     if (best.ev.violations > 0) {
-        balanceFailInfo = minGroups > nSlots ? { minGroups, nSlots } : null;
+        balanceFailInfo = null;
         return null;
     }
     
@@ -1942,11 +1952,23 @@ function moveIdToCard(srcCard, dstCard, num) {
     srcCard.weights = newSrcWeights;
 }
 
-// Applica tutti gli spostamenti suggeriti, poi salva e riordina le schede
+// Applica tutti gli spostamenti suggeriti, poi salva e riordina le schede.
+// Gli spostamenti verso slot virtuali (m.newSlot) non hanno toId: la scheda
+// di destinazione viene creata al primo spostamento, dividendo la scheda di
+// provenienza o altre schede esistenti. Nessun ID nuovo viene inventato.
 function applyBalancing(moves) {
+    const newCards = new Map(); // newSlot -> scheda creata
+    let ctr = 0;
     moves.forEach(m => {
         const src = cards.find(c => c.id === m.fromId);
-        const dst = cards.find(c => c.id === m.toId);
+        let dst = m.toId ? cards.find(c => c.id === m.toId) : null;
+        if (!dst && m.newSlot !== null && m.newSlot !== undefined) {
+            if (!newCards.has(m.newSlot)) {
+                newCards.set(m.newSlot, { id: 'bal' + Date.now().toString() + (ctr++), numbers: [], weights: [] });
+                cards.push(newCards.get(m.newSlot));
+            }
+            dst = newCards.get(m.newSlot);
+        }
         if (src && dst && src !== dst) {
             moveIdToCard(src, dst, m.num);
         }
@@ -1972,7 +1994,9 @@ function renderBalanceStep() {
         <div class="balance-move-weight">${m.weight} g</div>
         <div class="balance-move-from">dalla scheda: ${from ? from.numbers.join(', ') : '—'}</div>
         <div class="balance-move-arrow">→</div>
-        <div class="balance-move-to">alla scheda: ${to ? to.numbers.join(', ') : '—'}</div>
+        <div class="balance-move-to">${m.newSlot !== null && m.newSlot !== undefined
+            ? 'alla nuova scheda (creata dividendo le schede esistenti)'
+            : 'alla scheda: ' + (to ? to.numbers.join(', ') : '—')}</div>
     `;
     
     balanceNextBtn.textContent = (balanceIndex === balanceMoves.length - 1) ? 'Fatto!' : 'Next';
@@ -1993,13 +2017,7 @@ balanceButton.addEventListener('click', () => {
     
     if (result === null) {
         balanceCounter.textContent = 'Pareggio schede';
-        let msg;
-        if (balanceFailInfo && balanceFailInfo.minGroups > balanceFailInfo.nSlots) {
-            msg = `Impossibile pareggiare: servono almeno <strong>${balanceFailInfo.minGroups}</strong> gruppi di ricci con pesi omogenei, ma esistono solo <strong>${balanceFailInfo.nSlots}</strong> schede. Crea altre schede (tasto +) e riprova, oppure sposta qualche ID manualmente.`;
-        } else {
-            msg = 'Non sono riuscito a trovare un piano di pareggiamento con i vincoli attuali. Prova a spostare qualche ID manualmente e riprova.';
-        }
-        balanceStep.innerHTML = `<p class="balance-msg">${msg}</p>`;
+        balanceStep.innerHTML = '<p class="balance-msg">Non sono riuscito a trovare un piano di pareggiamento con i vincoli attuali. Prova a spostare qualche ID manualmente e riprova.</p>';
         balanceNextBtn.style.display = 'none';
         openBalanceModal();
         return;
@@ -2026,8 +2044,12 @@ balanceNextBtn.addEventListener('click', () => {
         renderBalanceStep();
     } else {
         const n = balanceMoves.length;
+        const nNuove = balanceMoves.filter(m => m.newSlot !== null && m.newSlot !== undefined).length
+            ? new Set(balanceMoves.filter(m => m.newSlot !== null && m.newSlot !== undefined).map(m => m.newSlot)).size
+            : 0;
         balanceCloseBtn.dataset.pending = '1';
-        if (confirm(`Applicare i ${n} spostamenti suggeriti?`)) {
+        const extra = nNuove > 0 ? ` (incluse ${nNuove} nuove schede create dividendo quelle esistenti)` : '';
+        if (confirm(`Applicare i ${n} spostamenti suggeriti${extra}?`)) {
             applyBalancing(balanceMoves);
             closeBalanceModal();
         }
