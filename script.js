@@ -482,6 +482,13 @@ function createCardElement(card) {
             ? `<div class="card-name">${escapeHtml(card.name)}</div>`
             : '';
         
+        // Verdino chiaro se oggi è stata registrata almeno una pesata
+        const today = new Date();
+        const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        if (card.weights.some(w => w.date === todayKey)) {
+            cardElement.classList.add('card-today');
+        }
+        
         cardElement.innerHTML = `
             ${cardNameHtml}
             <div class="card-numbers">${numbersText}</div>

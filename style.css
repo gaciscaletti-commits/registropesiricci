@@ -108,6 +108,11 @@
     user-select: none;
 }
 
+/* Scheda con pesata registrata oggi: verdino chiaro */
+.card.card-today {
+    background-color: #eaf7e6;
+}
+
 .card.dragging {
     opacity: 0.5;
     transform: scale(0.95);
