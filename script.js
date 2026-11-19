@@ -1272,7 +1272,9 @@ archiveModal.addEventListener('click', (e) => {
 // Ordina i modali dal più alto: menu azioni sta sopra la scheda pesi
 addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        if (alertsModal.classList.contains('active')) {
+        if (balanceModal.classList.contains('active')) {
+            closeBalanceModal();
+        } else if (alertsModal.classList.contains('active')) {
             closeAlertsModal();
         } else if (nameModal.classList.contains('active')) {
             closeNameModal();
@@ -1565,5 +1567,304 @@ cardNameInput.addEventListener('keydown', (e) => {
 nameModal.addEventListener('click', (e) => {
     if (e.target === nameModal) {
         closeNameModal();
+    }
+});
+
+
+// --- Pareggio schede ---
+// Suggerisce come spostare ID tra schede ESISTENTI per bilanciare i pesi:
+// 1) ogni ID con peso noto (escluse le pesate a stomaco pieno) deve stare
+//    entro il 20% dalla media dei compagni della propria scheda;
+// 2) capacità massima per scheda, decisa dalla MEDIA dei pesi della scheda:
+//    media < 250 g -> max 4 | 250-400 g -> max 3 | > 400 g -> max 2;
+// 3) minor numero di spostamenti possibile, poi minimizzare gli scarti;
+// 4) si può unire una scheda con un singolo ID a un'altra (1 spostamento);
+// 5) una scheda svuotata viene eliminata alla fine.
+
+const balanceButton = document.getElementById('balanceButton');
+const balanceModal = document.getElementById('balanceModal');
+const balanceCloseBtn = document.getElementById('balanceCloseBtn');
+const balanceCounter = document.getElementById('balanceCounter');
+const balanceStep = document.getElementById('balanceStep');
+const balanceNextBtn = document.getElementById('balanceNextBtn');
+
+let balanceMoves = [];
+let balanceIndex = 0;
+
+const BALANCE_THRESHOLD = 0.20;
+const BALANCE_MAX_DEPTH = 6;   // massimo spostamenti esplorati
+const BALANCE_BEAM = 4000;     // stati tenuti per livello di profondità
+const BALANCE_BUDGET = 80000;  // numero massimo di valutazioni
+
+// Capacità massima di una scheda in base alla media dei pesi degli ID pesati
+function capacityLimit(avgWeight) {
+    if (avgWeight >= 400) return 2;
+    if (avgWeight >= 250) return 3;
+    return 4;
+}
+
+// Calcola il piano di pareggiamento.
+// Restituisce: array di spostamenti [{num, weight, fromId, toId}],
+// [] se le schede sono già bilanciate, null se nessuna soluzione trovata.
+function computeBalancing() {
+    const nSlots = cards.length;
+    if (nSlots === 0) return [];
+    
+    // ID con peso noto (escluse pesate a stomaco pieno): spostabili.
+    // ID mai pesati: restano fissi, ma contano nel numero della scheda.
+    const fixedCount = new Array(nSlots).fill(0);
+    const movable = [];
+    
+    cards.forEach((card, slotIdx) => {
+        const last = getLastWeights(card);
+        card.numbers.forEach((num, i) => {
+            if (last[i] !== null && last[i] !== undefined) {
+                movable.push({ num, weight: last[i], home: slotIdx });
+            } else {
+                fixedCount[slotIdx]++;
+            }
+        });
+    });
+    
+    if (movable.length === 0) return [];
+    
+    const n = movable.length;
+    const home = movable.map(m => m.home);
+    
+    // Valuta un'assegnazione: ogni ID spostabile in uno slot.
+    // Restituisce violazioni (sforamento capacità + ID oltre il 20%)
+    // e scarto complessivo (somma dei quadrati degli scarti).
+    function evaluate(assign) {
+        const members = Array.from({ length: nSlots }, () => []);
+        for (let i = 0; i < n; i++) members[assign[i]].push(i);
+        
+        let violations = 0;
+        let dev = 0;
+        
+        members.forEach((mem, s) => {
+            const total = mem.length + fixedCount[s];
+            if (mem.length === 0) {
+                if (total > capacityLimit(0)) violations++;
+                return;
+            }
+            
+            const weights = mem.map(i => movable[i].weight);
+            const avg = weights.reduce((a, b) => a + b, 0) / weights.length;
+            
+            // Capacità: decide la media dei pesi della scheda
+            if (total > capacityLimit(avg)) violations++;
+            
+            // Ogni ID entro il 20% dalla media degli altri della scheda
+            if (mem.length >= 2) {
+                mem.forEach(i => {
+                    const w = movable[i].weight;
+                    const others = mem.filter(j => j !== i).map(j => movable[j].weight);
+                    const avgOthers = others.reduce((a, b) => a + b, 0) / others.length;
+                    if (Math.abs(w - avgOthers) / avgOthers > BALANCE_THRESHOLD) violations++;
+                    dev += Math.pow(w - avgOthers, 2);
+                });
+            }
+        });
+        
+        return { violations, dev };
+    }
+    
+    const startAssign = movable.map(m => m.home);
+    if (evaluate(startAssign).violations === 0) return [];
+    
+    let level = [startAssign];
+    const visited = new Set([startAssign.join(',')]);
+    let evaluated = 1;
+    
+    // Ricerca per profondità crescente = numero di spostamenti:
+    // il primo livello con una soluzione dà il minor numero di spostamenti.
+    for (let depth = 1; depth <= BALANCE_MAX_DEPTH && evaluated < BALANCE_BUDGET; depth++) {
+        const nextLevel = [];
+        const levelKeys = new Set();
+        
+        for (const st of level) {
+            for (let i = 0; i < n; i++) {
+                if (st[i] !== home[i]) continue;
+                for (let s = 0; s < nSlots; s++) {
+                    if (s === home[i]) continue;
+                    const ns = st.slice();
+                    ns[i] = s;
+                    const key = ns.join(',');
+                    if (visited.has(key) || levelKeys.has(key)) continue;
+                    levelKeys.add(key);
+                    visited.add(key);
+                    nextLevel.push(ns);
+                }
+            }
+        }
+        
+        if (nextLevel.length === 0) break;
+        
+        // Valuta tutte le soluzioni di questo livello
+        const scored = [];
+        let best = null;
+        for (const st of nextLevel) {
+            const key = st.join(',');
+            const ev = evaluate(st);
+            evaluated++;
+            scored.push({ st, key, ev });
+            if (ev.violations === 0 && (best === null || ev.dev < best.ev.dev)) {
+                best = { st, ev };
+            }
+        }
+        
+        if (best) {
+            // Soluzione trovata con 'depth' spostamenti: proponila
+            const moves = [];
+            for (let i = 0; i < n; i++) {
+                if (best.st[i] !== home[i]) {
+                    moves.push({
+                        num: movable[i].num,
+                        weight: movable[i].weight,
+                        fromId: cards[home[i]].id,
+                        toId: cards[best.st[i]].id
+                    });
+                }
+            }
+            return moves;
+        }
+        
+        // Beam: per il livello successivo tieni gli stati più promettenti
+        scored.sort((a, b) => (a.ev.violations - b.ev.violations) || (a.ev.dev - b.ev.dev));
+        level = scored.slice(0, BALANCE_BEAM).map(s => s.st);
+    }
+    
+    return null;
+}
+
+// Sposta un ID da una scheda a un'altra, con tutto il suo storico pesi
+function moveIdToCard(srcCard, dstCard, num) {
+    const idx = srcCard.numbers.indexOf(num);
+    if (idx === -1) return;
+    
+    // Storico pesi dell'ID spostato
+    const movedRecords = [];
+    const newSrcWeights = [];
+    srcCard.weights.forEach(w => {
+        const v = w.values[idx];
+        if (v !== null && v !== undefined) {
+            movedRecords.push({ date: w.date, values: [v] });
+        }
+        const nv = w.values.filter((_, i) => i !== idx);
+        if (nv.some(x => x !== null && x !== undefined)) {
+            newSrcWeights.push({ date: w.date, values: nv });
+        }
+    });
+    
+    // Inserisce l'ID alla fine della scheda di destinazione
+    dstCard.numbers.push(num);
+    const newDstWeights = [];
+    const allDates = new Set([...dstCard.weights.map(w => w.date), ...movedRecords.map(r => r.date)]);
+    allDates.forEach(date => {
+        const d = dstCard.weights.find(w => w.date === date);
+        const r = movedRecords.find(x => x.date === date);
+        const values = d ? d.values.slice() : dstCard.numbers.slice(0, -1).map(() => null);
+        values.push(r ? r.values[0] : null);
+        newDstWeights.push({ date, values });
+    });
+    dstCard.weights = newDstWeights;
+    
+    // Aggiorna la scheda di provenienza
+    srcCard.numbers = srcCard.numbers.filter(x => x !== num);
+    srcCard.weights = newSrcWeights;
+}
+
+// Applica tutti gli spostamenti suggeriti, poi salva e riordina le schede
+function applyBalancing(moves) {
+    moves.forEach(m => {
+        const src = cards.find(c => c.id === m.fromId);
+        const dst = cards.find(c => c.id === m.toId);
+        if (src && dst && src !== dst) {
+            moveIdToCard(src, dst, m.num);
+        }
+    });
+    
+    // Le schede svuotate vengono eliminate
+    cards = cards.filter(c => c.numbers.length > 0);
+    
+    saveData();
+    renderCards();
+}
+
+// Mostra lo spostamento corrente
+function renderBalanceStep() {
+    const m = balanceMoves[balanceIndex];
+    const from = cards.find(c => c.id === m.fromId);
+    const to = cards.find(c => c.id === m.toId);
+    
+    balanceCounter.textContent = `Spostamento ${balanceIndex + 1} di ${balanceMoves.length}`;
+    
+    balanceStep.innerHTML = `
+        <div class="balance-move-id">ID ${m.num}</div>
+        <div class="balance-move-weight">${m.weight} g</div>
+        <div class="balance-move-from">dalla scheda: ${from ? from.numbers.join(', ') : '—'}</div>
+        <div class="balance-move-arrow">→</div>
+        <div class="balance-move-to">alla scheda: ${to ? to.numbers.join(', ') : '—'}</div>
+    `;
+    
+    balanceNextBtn.textContent = (balanceIndex === balanceMoves.length - 1) ? 'Fatto!' : 'Next';
+}
+
+function openBalanceModal() {
+    balanceModal.classList.add('active');
+}
+
+function closeBalanceModal() {
+    balanceModal.classList.remove('active');
+    balanceMoves = [];
+    balanceIndex = 0;
+}
+
+balanceButton.addEventListener('click', () => {
+    const result = computeBalancing();
+    
+    if (result === null) {
+        balanceCounter.textContent = 'Pareggio schede';
+        balanceStep.innerHTML = '<p class="balance-msg">Non sono riuscito a trovare un piano di pareggiamento con i vincoli attuali. Prova a spostare qualche ID manualmente e riprova.</p>';
+        balanceNextBtn.style.display = 'none';
+        openBalanceModal();
+        return;
+    }
+    
+    if (result.length === 0) {
+        balanceCounter.textContent = 'Pareggio schede';
+        balanceStep.innerHTML = '<p class="balance-msg">Tutte le schede sono già bilanciate: nessuno spostamento necessario 🎉</p>';
+        balanceNextBtn.style.display = 'none';
+        openBalanceModal();
+        return;
+    }
+    
+    balanceMoves = result;
+    balanceIndex = 0;
+    balanceNextBtn.style.display = 'inline-block';
+    renderBalanceStep();
+    openBalanceModal();
+});
+
+balanceNextBtn.addEventListener('click', () => {
+    if (balanceIndex < balanceMoves.length - 1) {
+        balanceIndex++;
+        renderBalanceStep();
+    } else {
+        const n = balanceMoves.length;
+        balanceCloseBtn.dataset.pending = '1';
+        if (confirm(`Applicare i ${n} spostamenti suggeriti?`)) {
+            applyBalancing(balanceMoves);
+            closeBalanceModal();
+        }
+        delete balanceCloseBtn.dataset.pending;
+    }
+});
+
+balanceCloseBtn.addEventListener('click', closeBalanceModal);
+
+balanceModal.addEventListener('click', (e) => {
+    if (e.target === balanceModal) {
+        closeBalanceModal();
     }
 });

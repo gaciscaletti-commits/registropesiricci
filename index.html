@@ -10,6 +10,7 @@
     <div class="app-container">
         <header class="app-header">
             <button class="archive-button" id="archiveButton">📁 Archivio</button>
+            <button class="balance-button" id="balanceButton" title="Pareggia le schede">⚖️</button>
             <button class="alert-button" id="alertButton" title="Alert anomali peso">🚨<span class="alert-badge" id="alertBadge" style="display: none;">0</span></button>
             <h1>RicciOS ❄️</h1>
         </header>
@@ -121,6 +122,20 @@
                     <button class="btn-cancel" id="cancelWeightBtn">Chiudi</button>
                     <button class="btn-confirm" id="addWeightBtn">Aggiungi Peso</button>
                 </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modale pareggio schede -->
+    <div class="modal" id="balanceModal">
+        <div class="modal-content balance-modal">
+            <div class="balance-header">
+                <span class="balance-counter" id="balanceCounter"></span>
+                <button class="balance-close" id="balanceCloseBtn" title="Annulla">✕</button>
+            </div>
+            <div class="balance-step" id="balanceStep"></div>
+            <div class="modal-buttons">
+                <button class="btn-confirm" id="balanceNextBtn">Next</button>
             </div>
         </div>
     </div>
