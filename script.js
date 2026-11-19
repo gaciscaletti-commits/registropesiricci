@@ -1595,8 +1595,6 @@ let balanceMoves = [];
 let balanceIndex = 0;
 
 const BALANCE_THRESHOLD = 0.20;
-const BALANCE_EXACT_DEPTH = 3;     // profondità della ricerca esatta (min mosse)
-const BALANCE_SEARCH_MS = 1500;    // tempo massimo del local search di scorta
 
 // Capacità massima di una scheda in base alla media dei pesi degli ID pesati
 function capacityLimit(avgWeight) {
@@ -1605,19 +1603,17 @@ function capacityLimit(avgWeight) {
     return 4;
 }
 
-// Calcola il piano di pareggiamento.
+// Calcola il piano di pareggiamento: riorganizza TUTTI gli ID pesati nelle
+// schede nel modo più "pieno" possibile, secondo i vincoli (ogni ID entro
+// il 20% dalla media degli altri della scheda, capacità per peso medio, solo
+// pesate normali). Non minimizza gli spostamenti: mette prima più ID possibili
+// per scheda, poi preferisce gli abbinamenti che spostano meno ID.
+// Se servono più gruppi omogenei di quante schede esistono, crea le schede
+// aggiuntive dividendo quelle esistenti (nessun nuovo ID).
 // Restituisce: array di spostamenti [{num, weight, fromId, toId, newSlot}],
-// [] se le schede sono già bilanciate, null se nessuna soluzione trovata
-// (in questo caso balanceFailInfo contiene i dettagli del perché).
-// Algoritmo in 3 fasi:
-//   1) ricerca esatta fino a BALANCE_EXACT_DEPTH spostamenti: trova la
-//      soluzione con il minor numero di mosse quando basta poco;
-//   2) partizione ottima dei pesi ordinati in gruppi omogenei (DP): se i
-//      gruppi sono più delle schede esistenti, aggiunge schede "virtuali"
-//      che verranno create dividendo quelle esistenti (nessun nuovo ID);
-//      costruisce il piano assegnando ogni gruppo alla scheda che sposta
-//      meno ID;
-//   3) local search di scorta per partizioni non contigue.
+// [] se le schede sono già bilanciate, null se nessuna soluzione trovata.
+// Il piano è un assegnamento completo (riorganizzazione), mostrato però solo
+// per gli ID che cambiano scheda.
 let balanceFailInfo = null;
 
 // Un gruppo di pesi è compatibile se ogni riccio è entro il 20% dalla media
@@ -1659,9 +1655,9 @@ function computeBalancing() {
     balanceFailInfo = null;
     const nSlots = cards.length;
     if (nSlots === 0) return [];
-    let nTot = nSlots; // slot totali: cresce con eventuali schede di divisione
-    const fixedCount = new Array(nSlots).fill(0);
+
     // ID mai pesati: restano fissi, ma contano nel numero della scheda.
+    const fixedCount = new Array(nSlots).fill(0);
     const movable = [];
     cards.forEach((card, slotIdx) => {
         const last = getLastWeights(card);
@@ -1673,51 +1669,40 @@ function computeBalancing() {
             }
         });
     });
-    
+
     if (movable.length === 0) return [];
-    
+
     const n = movable.length;
     const home = movable.map(m => m.home);
-    
-    // Valuta un'assegnazione: violazioni (capacità + ID oltre il 20%)
-    // e scarto complessivo (somma dei quadrati degli scarti)
-    function evaluate(assign) {
+
+    // Conta le violazioni di un assegnamento (capacità + soglia 20%)
+    function violationsOf(assign) {
         const members = Array.from({ length: fixedCount.length }, () => []);
         for (let i = 0; i < n; i++) members[assign[i]].push(i);
-        
         let violations = 0;
-        let dev = 0;
-        
         members.forEach((mem, s) => {
             const total = mem.length + fixedCount[s];
             if (mem.length === 0) {
                 if (total > capacityLimit(0)) violations++;
                 return;
             }
-            
             const weights = mem.map(i => movable[i].weight);
             const avg = weights.reduce((a, b) => a + b, 0) / weights.length;
-            
             if (total > capacityLimit(avg)) violations++;
-            
             if (mem.length >= 2) {
                 mem.forEach(i => {
-                    const w = movable[i].weight;
                     let sum = 0;
                     for (const j of mem) if (j !== i) sum += movable[j].weight;
                     const avgOthers = sum / (mem.length - 1);
-                    if (Math.abs(w - avgOthers) / avgOthers > BALANCE_THRESHOLD) violations++;
-                    dev += (w - avgOthers) * (w - avgOthers);
+                    if (Math.abs(movable[i].weight - avgOthers) / avgOthers > BALANCE_THRESHOLD) violations++;
                 });
             }
         });
-        
-        return { violations, dev };
+        return violations;
     }
-    
-    const startAssign = home.slice();
-    if (evaluate(startAssign).violations === 0) return [];
-    
+
+    if (violationsOf(home.slice()) === 0) return []; // già bilanciate
+
     function movesFrom(assign) {
         const moves = [];
         for (let i = 0; i < n; i++) {
@@ -1734,185 +1719,81 @@ function computeBalancing() {
         }
         return moves;
     }
-    
-    // ---- FASE 1: ricerca esatta fino a BALANCE_EXACT_DEPTH spostamenti ----
-    let level = [startAssign];
-    const visited = new Set([startAssign.join(',')]);
-    for (let depth = 1; depth <= BALANCE_EXACT_DEPTH; depth++) {
-        const nextLevel = [];
-        const levelKeys = new Set();
-        
-        for (const st of level) {
-            for (let i = 0; i < n; i++) {
-                if (st[i] !== home[i]) continue;
-                for (let s = 0; s < nTot; s++) {
-                    if (s === home[i]) continue;
-                    const ns = st.slice();
-                    ns[i] = s;
-                    const key = ns.join(',');
-                    if (visited.has(key) || levelKeys.has(key)) continue;
-                    levelKeys.add(key);
-                    visited.add(key);
-                    nextLevel.push(ns);
-                }
-            }
-        }
-        
-        if (nextLevel.length === 0) break;
-        
-        let best = null;
-        for (const st of nextLevel) {
-            const ev = evaluate(st);
-            if (ev.violations === 0 && (best === null || ev.dev < best.ev.dev)) {
-                best = { st, ev };
-            }
-        }
-        if (best) return movesFrom(best.st);
-        
-        level = nextLevel;
-    }
-    
-    // ---- FASE 2: partizione dei pesi ordinati in gruppi omogenei (DP) ----
+
+    // Partizione ottima dei pesi ordinati in gruppi omogenei (DP):
+    // il minor numero di gruppi = più ID possibili per scheda.
     const sorted = movable.map((m, i) => ({ i, w: m.weight })).sort((a, b) => a.w - b.w);
     const { minGroups, choice } = balanceDpPartition(sorted.map(x => x.w));
-    
-    if (minGroups < 1e9) {
-        if (minGroups > nTot) {
-            // Servono più gruppi omogenei di quante schede esistono:
-            // estende gli slot con schede virtuali (divisione delle schede).
-            // Le nuove schede conterranno solo ID già esistenti spostati.
-            while (fixedCount.length < minGroups) fixedCount.push(0);
-            nTot = fixedCount.length;
-        }
-        
-        // Ricostruisci i gruppi della partizione
-        const groups = [];
-        let pos = n;
-        while (pos > 0) {
-            const gStart = choice[pos];
-            groups.unshift(sorted.slice(gStart, pos).map(x => x.i));
-            pos = gStart;
-        }
-        while (groups.length < nTot) groups.push([]);
-        
-        const groupAvg = g => g.length ? g.reduce((s, i) => s + movable[i].weight, 0) / g.length : 0;
-        
-        // Assegna i gruppi alle schede cercando di muovere il meno possibile.
-        // Gli slot reali (indici < nSlots) sono preferiti perché uno spostamento
-        // verso uno slot virtuale crea comunque una nuova scheda.
-        function tryAssign(order) {
-            const freeSlots = [...Array(nTot).keys()];
-            const todo = order.slice();
-            const assign = new Array(n).fill(-1);
-            
-            while (todo.length) {
-                let pick = null;
-                for (const gi of todo) {
-                    const g = groups[gi];
-                    const cap = capacityLimit(groupAvg(g));
-                    for (const s of freeSlots) {
-                        if (g.length + fixedCount[s] > cap) continue;
-                        const stay = g.filter(i => movable[i].home === s).length;
-                        if (!pick || stay > pick.stay) pick = { gi, s, stay };
-                    }
+    if (minGroups >= 1e9) return null;
+
+    const nTot = Math.max(nSlots, minGroups);
+    while (fixedCount.length < nTot) fixedCount.push(0);
+
+    // Ricostruisci i gruppi della partizione
+    const groups = [];
+    let pos = n;
+    while (pos > 0) {
+        const gStart = choice[pos];
+        groups.unshift(sorted.slice(gStart, pos).map(x => x.i));
+        pos = gStart;
+    }
+    while (groups.length < nTot) groups.push([]);
+
+    const groupAvg = g => g.length ? g.reduce((s, i) => s + movable[i].weight, 0) / g.length : 0;
+
+    // Assegna i gruppi alle schede: preferisce le schede reali e quelle dove
+    // è già a casa il massimo numero di ID del gruppo (meno spostamenti).
+    function tryAssign(order) {
+        const freeSlots = [...Array(nTot).keys()];
+        const todo = order.slice();
+        const assign = new Array(n).fill(-1);
+
+        while (todo.length) {
+            let pick = null;
+            for (const gi of todo) {
+                const g = groups[gi];
+                const cap = capacityLimit(groupAvg(g));
+                for (const s of freeSlots) {
+                    if (g.length + fixedCount[s] > cap) continue;
+                    const stay = g.filter(i => movable[i].home === s).length;
+                    if (!pick || stay > pick.stay) pick = { gi, s, stay };
                 }
-                if (!pick) return null;   // nessuna scheda valida per un gruppo
-                groups[pick.gi].forEach(i => assign[i] = pick.s);
-                todo.splice(todo.indexOf(pick.gi), 1);
-                freeSlots.splice(freeSlots.indexOf(pick.s), 1);
             }
-            return assign;
+            if (!pick) return null;   // nessuna scheda valida per un gruppo
+            groups[pick.gi].forEach(i => assign[i] = pick.s);
+            todo.splice(todo.indexOf(pick.gi), 1);
+            freeSlots.splice(freeSlots.indexOf(pick.s), 1);
         }
-        
-        // Prova vari ordini di assegnazione e tieni quella con meno spostamenti
-        const baseOrder = [...Array(groups.length).keys()];
-        const orders = [baseOrder, baseOrder.slice().reverse()];
-        for (let rep = 0; rep < 8; rep++) {
-            const o = baseOrder.slice();
-            for (let i = o.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [o[i], o[j]] = [o[j], o[i]];
-            }
-            orders.push(o);
-        }
-        
-        let bestAssign = null;
-        let bestMovesCount = Infinity;
-        for (const o of orders) {
-            const assign = tryAssign(o);
-            if (!assign || assign.includes(-1)) continue;
-            if (evaluate(assign).violations !== 0) continue;
-            const movesCount = assign.reduce((s, v, idx) => s + (v === home[idx] ? 0 : 1), 0);
-            if (movesCount < bestMovesCount) {
-                bestMovesCount = movesCount;
-                bestAssign = assign.slice();
-            }
-        }
-        
-        if (bestAssign) return movesFrom(bestAssign);
+        return assign;
     }
-    
-    // ---- FASE 3: local search di scorta (partizioni non contigue) ----
-    const t0 = Date.now();
-    let cur = startAssign.slice();
-    let curEv = evaluate(cur);
-    let best = { st: cur.slice(), ev: curEv };
-    const randInt = k => Math.floor(Math.random() * k);
-    
-    while (Date.now() - t0 < BALANCE_SEARCH_MS) {
-        let improved = false;
-        
-        // Cerca una mossa singola che migliori (violazioni prima, poi scarti)
-        for (let tries = 0, i = randInt(n); tries < n * nTot && !improved; tries++) {
-            i = (i + 1) % n;
-            const s = randInt(nTot);
-            if (s === cur[i]) continue;
-            const old = cur[i];
-            cur[i] = s;
-            const ev = evaluate(cur);
-            if (ev.violations < curEv.violations || (ev.violations === curEv.violations && ev.dev < curEv.dev)) {
-                curEv = ev;
-                improved = true;
-                if (ev.violations < best.ev.violations || (ev.violations === best.ev.violations && ev.dev < best.ev.dev)) {
-                    best = { st: cur.slice(), ev };
-                }
-            } else {
-                cur[i] = old;
-            }
+
+    // Prova vari ordini di assegnamento e tieni quella con meno spostamenti
+    const baseOrder = [...Array(groups.length).keys()];
+    const orders = [baseOrder, baseOrder.slice().reverse()];
+    for (let rep = 0; rep < 16; rep++) {
+        const o = baseOrder.slice();
+        for (let i = o.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [o[i], o[j]] = [o[j], o[i]];
         }
-        
-        if (best.ev.violations === 0) break;
-        
-        if (!improved) {
-            // Bloccato: riparte dal migliore con una perturbazione
-            cur = best.st.slice();
-            for (let k = 0; k < 2; k++) cur[randInt(n)] = randInt(nTot);
-            curEv = evaluate(cur);
+        orders.push(o);
+    }
+
+    let bestAssign = null;
+    let bestMovesCount = Infinity;
+    for (const o of orders) {
+        const assign = tryAssign(o);
+        if (!assign || assign.includes(-1)) continue;
+        if (violationsOf(assign) !== 0) continue;
+        const movesCount = assign.reduce((s, v, idx) => s + (v === home[idx] ? 0 : 1), 0);
+        if (movesCount < bestMovesCount) {
+            bestMovesCount = movesCount;
+            bestAssign = assign.slice();
         }
     }
-    
-    if (best.ev.violations > 0) {
-        balanceFailInfo = null;
-        return null;
-    }
-    
-    // Riduci gli spostamenti finché resta tutto fattibile
-    let assign = best.st.slice();
-    let changed = true;
-    while (changed) {
-        changed = false;
-        for (let i = 0; i < n; i++) {
-            if (assign[i] === home[i]) continue;
-            const old = assign[i];
-            assign[i] = home[i];
-            if (evaluate(assign).violations === 0) {
-                changed = true;
-            } else {
-                assign[i] = old;
-            }
-        }
-    }
-    return movesFrom(assign);
+
+    if (!bestAssign) return null;
+    return movesFrom(bestAssign);
 }
 
 // Sposta un ID da una scheda a un'altra, con tutto il suo storico pesi
