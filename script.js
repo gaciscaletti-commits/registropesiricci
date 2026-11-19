@@ -1592,9 +1592,8 @@ let balanceMoves = [];
 let balanceIndex = 0;
 
 const BALANCE_THRESHOLD = 0.20;
-const BALANCE_MAX_DEPTH = 6;   // massimo spostamenti esplorati
-const BALANCE_BEAM = 4000;     // stati tenuti per livello di profondità
-const BALANCE_BUDGET = 80000;  // numero massimo di valutazioni
+const BALANCE_EXACT_DEPTH = 3;     // profondità della ricerca esatta (min mosse)
+const BALANCE_SEARCH_MS = 1500;    // tempo massimo del local search di scorta
 
 // Capacità massima di una scheda in base alla media dei pesi degli ID pesati
 function capacityLimit(avgWeight) {
@@ -1605,8 +1604,54 @@ function capacityLimit(avgWeight) {
 
 // Calcola il piano di pareggiamento.
 // Restituisce: array di spostamenti [{num, weight, fromId, toId}],
-// [] se le schede sono già bilanciate, null se nessuna soluzione trovata.
+// [] se le schede sono già bilanciate, null se nessuna soluzione trovata
+// (in questo caso balanceFailInfo contiene i dettagli del perché).
+// Algoritmo in 3 fasi:
+//   1) ricerca esatta fino a BALANCE_EXACT_DEPTH spostamenti: trova la
+//      soluzione con il minor numero di mosse quando basta poco;
+//   2) partizione ottima dei pesi ordinati in gruppi omogenei (DP): se i
+//      gruppi staranno tutte nelle schede esistenti, costruisce il piano
+//      assegnando ogni gruppo alla scheda che sposta meno ID;
+//   3) local search di scorta per partizioni non contigue.
+let balanceFailInfo = null;
+
+// Un gruppo di pesi è compatibile se ogni riccio è entro il 20% dalla media
+// degli altri del gruppo e la numerosità rispetta la capacità
+function balanceGroupOk(weights) {
+    const k = weights.length;
+    if (k === 0) return false;
+    if (k === 1) return true;
+    const avg = weights.reduce((a, b) => a + b, 0) / k;
+    if (k > capacityLimit(avg)) return false;
+    for (let i = 0; i < k; i++) {
+        const avgOthers = (weights.reduce((a, w, j) => a + (j === i ? 0 : w), 0)) / (k - 1);
+        if (Math.abs(weights[i] - avgOthers) / avgOthers > BALANCE_THRESHOLD) return false;
+    }
+    return true;
+}
+
+// Minimo numero di gruppi compatibili in cui dividere i pesi ordinati
+function balanceDpPartition(sortedWeights) {
+    const n = sortedWeights.length;
+    const INF = 1e9;
+    const dp = new Array(n + 1).fill(INF);
+    const choice = new Array(n + 1).fill(0);
+    dp[0] = 0;
+    for (let i = 1; i <= n; i++) {
+        for (let j = 0; j < i; j++) {
+            if (dp[j] === INF) continue;
+            if (!balanceGroupOk(sortedWeights.slice(j, i))) continue;
+            if (dp[j] + 1 < dp[i]) {
+                dp[i] = dp[j] + 1;
+                choice[i] = j;
+            }
+        }
+    }
+    return { minGroups: dp[n], choice };
+}
+
 function computeBalancing() {
+    balanceFailInfo = null;
     const nSlots = cards.length;
     if (nSlots === 0) return [];
     
@@ -1614,7 +1659,6 @@ function computeBalancing() {
     // ID mai pesati: restano fissi, ma contano nel numero della scheda.
     const fixedCount = new Array(nSlots).fill(0);
     const movable = [];
-    
     cards.forEach((card, slotIdx) => {
         const last = getLastWeights(card);
         card.numbers.forEach((num, i) => {
@@ -1631,9 +1675,8 @@ function computeBalancing() {
     const n = movable.length;
     const home = movable.map(m => m.home);
     
-    // Valuta un'assegnazione: ogni ID spostabile in uno slot.
-    // Restituisce violazioni (sforamento capacità + ID oltre il 20%)
-    // e scarto complessivo (somma dei quadrati degli scarti).
+    // Valuta un'assegnazione: violazioni (capacità + ID oltre il 20%)
+    // e scarto complessivo (somma dei quadrati degli scarti)
     function evaluate(assign) {
         const members = Array.from({ length: nSlots }, () => []);
         for (let i = 0; i < n; i++) members[assign[i]].push(i);
@@ -1651,17 +1694,16 @@ function computeBalancing() {
             const weights = mem.map(i => movable[i].weight);
             const avg = weights.reduce((a, b) => a + b, 0) / weights.length;
             
-            // Capacità: decide la media dei pesi della scheda
             if (total > capacityLimit(avg)) violations++;
             
-            // Ogni ID entro il 20% dalla media degli altri della scheda
             if (mem.length >= 2) {
                 mem.forEach(i => {
                     const w = movable[i].weight;
-                    const others = mem.filter(j => j !== i).map(j => movable[j].weight);
-                    const avgOthers = others.reduce((a, b) => a + b, 0) / others.length;
+                    let sum = 0;
+                    for (const j of mem) if (j !== i) sum += movable[j].weight;
+                    const avgOthers = sum / (mem.length - 1);
                     if (Math.abs(w - avgOthers) / avgOthers > BALANCE_THRESHOLD) violations++;
-                    dev += Math.pow(w - avgOthers, 2);
+                    dev += (w - avgOthers) * (w - avgOthers);
                 });
             }
         });
@@ -1669,16 +1711,28 @@ function computeBalancing() {
         return { violations, dev };
     }
     
-    const startAssign = movable.map(m => m.home);
+    const startAssign = home.slice();
     if (evaluate(startAssign).violations === 0) return [];
     
+    function movesFrom(assign) {
+        const moves = [];
+        for (let i = 0; i < n; i++) {
+            if (assign[i] !== home[i]) {
+                moves.push({
+                    num: movable[i].num,
+                    weight: movable[i].weight,
+                    fromId: cards[home[i]].id,
+                    toId: cards[assign[i]].id
+                });
+            }
+        }
+        return moves;
+    }
+    
+    // ---- FASE 1: ricerca esatta fino a BALANCE_EXACT_DEPTH spostamenti ----
     let level = [startAssign];
     const visited = new Set([startAssign.join(',')]);
-    let evaluated = 1;
-    
-    // Ricerca per profondità crescente = numero di spostamenti:
-    // il primo livello con una soluzione dà il minor numero di spostamenti.
-    for (let depth = 1; depth <= BALANCE_MAX_DEPTH && evaluated < BALANCE_BUDGET; depth++) {
+    for (let depth = 1; depth <= BALANCE_EXACT_DEPTH; depth++) {
         const nextLevel = [];
         const levelKeys = new Set();
         
@@ -1700,41 +1754,155 @@ function computeBalancing() {
         
         if (nextLevel.length === 0) break;
         
-        // Valuta tutte le soluzioni di questo livello
-        const scored = [];
         let best = null;
         for (const st of nextLevel) {
-            const key = st.join(',');
             const ev = evaluate(st);
-            evaluated++;
-            scored.push({ st, key, ev });
             if (ev.violations === 0 && (best === null || ev.dev < best.ev.dev)) {
                 best = { st, ev };
             }
         }
+        if (best) return movesFrom(best.st);
         
-        if (best) {
-            // Soluzione trovata con 'depth' spostamenti: proponila
-            const moves = [];
-            for (let i = 0; i < n; i++) {
-                if (best.st[i] !== home[i]) {
-                    moves.push({
-                        num: movable[i].num,
-                        weight: movable[i].weight,
-                        fromId: cards[home[i]].id,
-                        toId: cards[best.st[i]].id
-                    });
-                }
-            }
-            return moves;
-        }
-        
-        // Beam: per il livello successivo tieni gli stati più promettenti
-        scored.sort((a, b) => (a.ev.violations - b.ev.violations) || (a.ev.dev - b.ev.dev));
-        level = scored.slice(0, BALANCE_BEAM).map(s => s.st);
+        level = nextLevel;
     }
     
-    return null;
+    // ---- FASE 2: partizione dei pesi ordinati in gruppi omogenei (DP) ----
+    const sorted = movable.map((m, i) => ({ i, w: m.weight })).sort((a, b) => a.w - b.w);
+    const { minGroups, choice } = balanceDpPartition(sorted.map(x => x.w));
+    
+    if (minGroups < 1e9) {
+        if (minGroups > nSlots) {
+            // Servono più gruppi di quante schede esistono: davvero impossibile
+            balanceFailInfo = { minGroups, nSlots };
+            return null;
+        }
+        
+        // Ricostruisci i gruppi della partizione
+        const groups = [];
+        let pos = n;
+        while (pos > 0) {
+            const gStart = choice[pos];
+            groups.unshift(sorted.slice(gStart, pos).map(x => x.i));
+            pos = gStart;
+        }
+        while (groups.length < nSlots) groups.push([]);
+        
+        const groupAvg = g => g.length ? g.reduce((s, i) => s + movable[i].weight, 0) / g.length : 0;
+        
+        // Assegna i gruppi alle schede cercando di muovere il meno possibile
+        function tryAssign(order) {
+            const freeSlots = [...Array(nSlots).keys()];
+            const todo = order.slice();
+            const assign = new Array(n).fill(-1);
+            
+            while (todo.length) {
+                let pick = null;
+                for (const gi of todo) {
+                    const g = groups[gi];
+                    const cap = capacityLimit(groupAvg(g));
+                    for (const s of freeSlots) {
+                        if (g.length + fixedCount[s] > cap) continue;
+                        const stay = g.filter(i => movable[i].home === s).length;
+                        if (!pick || stay > pick.stay) pick = { gi, s, stay };
+                    }
+                }
+                if (!pick) return null;   // nessuna scheda valida per un gruppo
+                groups[pick.gi].forEach(i => assign[i] = pick.s);
+                todo.splice(todo.indexOf(pick.gi), 1);
+                freeSlots.splice(freeSlots.indexOf(pick.s), 1);
+            }
+            return assign;
+        }
+        
+        // Prova vari ordini di assegnazione e tieni quella con meno spostamenti
+        const baseOrder = [...Array(groups.length).keys()];
+        const orders = [baseOrder, baseOrder.slice().reverse()];
+        for (let rep = 0; rep < 8; rep++) {
+            const o = baseOrder.slice();
+            for (let i = o.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [o[i], o[j]] = [o[j], o[i]];
+            }
+            orders.push(o);
+        }
+        
+        let bestAssign = null;
+        let bestMovesCount = Infinity;
+        for (const o of orders) {
+            const assign = tryAssign(o);
+            if (!assign || assign.includes(-1)) continue;
+            if (evaluate(assign).violations !== 0) continue;
+            const movesCount = assign.reduce((s, v, idx) => s + (v === home[idx] ? 0 : 1), 0);
+            if (movesCount < bestMovesCount) {
+                bestMovesCount = movesCount;
+                bestAssign = assign.slice();
+            }
+        }
+        
+        if (bestAssign) return movesFrom(bestAssign);
+    }
+    
+    // ---- FASE 3: local search di scorta (partizioni non contigue) ----
+    const t0 = Date.now();
+    let cur = startAssign.slice();
+    let curEv = evaluate(cur);
+    let best = { st: cur.slice(), ev: curEv };
+    const randInt = k => Math.floor(Math.random() * k);
+    
+    while (Date.now() - t0 < BALANCE_SEARCH_MS) {
+        let improved = false;
+        
+        // Cerca una mossa singola che migliori (violazioni prima, poi scarti)
+        for (let tries = 0, i = randInt(n); tries < n * nSlots && !improved; tries++) {
+            i = (i + 1) % n;
+            const s = randInt(nSlots);
+            if (s === cur[i]) continue;
+            const old = cur[i];
+            cur[i] = s;
+            const ev = evaluate(cur);
+            if (ev.violations < curEv.violations || (ev.violations === curEv.violations && ev.dev < curEv.dev)) {
+                curEv = ev;
+                improved = true;
+                if (ev.violations < best.ev.violations || (ev.violations === best.ev.violations && ev.dev < best.ev.dev)) {
+                    best = { st: cur.slice(), ev };
+                }
+            } else {
+                cur[i] = old;
+            }
+        }
+        
+        if (best.ev.violations === 0) break;
+        
+        if (!improved) {
+            // Bloccato: riparte dal migliore con una perturbazione
+            cur = best.st.slice();
+            for (let k = 0; k < 2; k++) cur[randInt(n)] = randInt(nSlots);
+            curEv = evaluate(cur);
+        }
+    }
+    
+    if (best.ev.violations > 0) {
+        balanceFailInfo = minGroups > nSlots ? { minGroups, nSlots } : null;
+        return null;
+    }
+    
+    // Riduci gli spostamenti finché resta tutto fattibile
+    let assign = best.st.slice();
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (let i = 0; i < n; i++) {
+            if (assign[i] === home[i]) continue;
+            const old = assign[i];
+            assign[i] = home[i];
+            if (evaluate(assign).violations === 0) {
+                changed = true;
+            } else {
+                assign[i] = old;
+            }
+        }
+    }
+    return movesFrom(assign);
 }
 
 // Sposta un ID da una scheda a un'altra, con tutto il suo storico pesi
@@ -1825,7 +1993,13 @@ balanceButton.addEventListener('click', () => {
     
     if (result === null) {
         balanceCounter.textContent = 'Pareggio schede';
-        balanceStep.innerHTML = '<p class="balance-msg">Non sono riuscito a trovare un piano di pareggiamento con i vincoli attuali. Prova a spostare qualche ID manualmente e riprova.</p>';
+        let msg;
+        if (balanceFailInfo && balanceFailInfo.minGroups > balanceFailInfo.nSlots) {
+            msg = `Impossibile pareggiare: servono almeno <strong>${balanceFailInfo.minGroups}</strong> gruppi di ricci con pesi omogenei, ma esistono solo <strong>${balanceFailInfo.nSlots}</strong> schede. Crea altre schede (tasto +) e riprova, oppure sposta qualche ID manualmente.`;
+        } else {
+            msg = 'Non sono riuscito a trovare un piano di pareggiamento con i vincoli attuali. Prova a spostare qualche ID manualmente e riprova.';
+        }
+        balanceStep.innerHTML = `<p class="balance-msg">${msg}</p>`;
         balanceNextBtn.style.display = 'none';
         openBalanceModal();
         return;
